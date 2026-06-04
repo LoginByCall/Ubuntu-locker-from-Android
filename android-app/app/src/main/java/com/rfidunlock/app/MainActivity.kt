@@ -40,6 +40,8 @@ import com.rfidunlock.app.ui.SettingsScreen
 import com.rfidunlock.app.ui.SettingsViewModel
 import com.rfidunlock.app.ui.TagListScreen
 import com.rfidunlock.app.ui.TagViewModel
+import com.rfidunlock.app.ui.PcGridScreen
+import com.rfidunlock.app.ui.PcGridViewModel
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
 import kotlinx.coroutines.launch
@@ -58,6 +60,9 @@ class MainActivity : ComponentActivity() {
     }
     private val settingsViewModel: SettingsViewModel by viewModels {
         SettingsViewModel.Factory(settingsRepository)
+    }
+    private val pcGridViewModel: PcGridViewModel by viewModels {
+        PcGridViewModel.Factory(pcProfileRepository)
     }
 
     private var service: RfidForegroundService? = null
@@ -82,8 +87,9 @@ class MainActivity : ComponentActivity() {
     /** UID только что обнаружённой неизвестной метки (для диалога имени). */
     private var pendingUid by mutableStateOf<String?>(null)
 
-    /** Текущий экран: false — список меток, true — настройки. */
-    private var showSettings by mutableStateOf(false)
+    /** Текущий экран. */
+    private enum class Screen { GRID, TAGS, SETTINGS }
+    private var screen by mutableStateOf(Screen.GRID)
 
     /** Текст последнего результата операции (для индикации в настройках). */
     private var statusText by mutableStateOf<String?>(null)
@@ -141,32 +147,42 @@ class MainActivity : ComponentActivity() {
             }
             MaterialTheme(colorScheme = colorScheme) {
                 Surface {
-                    if (showSettings) {
-                        SettingsScreen(
+                    when (screen) {
+                        Screen.SETTINGS -> SettingsScreen(
                             viewModel = settingsViewModel,
                             statusText = statusText,
-                            onBack = { showSettings = false },
+                            onBack = { screen = Screen.GRID },
                             onTestConnection = { service?.checkStatus() },
                         )
-                    } else {
-                        TagListScreen(
-                            viewModel = viewModel,
-                            onOpenSettings = { showSettings = true },
-                            onAddPc = { startQrScan() },
-                            onUnlock = { service?.requestUnlock() },
-                            onLock = { service?.requestLock() },
-                        )
-                        val uid = pendingUid
-                        if (uid != null) {
-                            NameTagDialog(
-                                uid = uid,
-                                onConfirm = { name ->
-                                    viewModel.registerOrRename(uid, name)
-                                    pendingUid = null
-                                },
-                                onDismiss = { pendingUid = null },
+                        Screen.TAGS -> {
+                            TagListScreen(
+                                viewModel = viewModel,
+                                onOpenSettings = { screen = Screen.SETTINGS },
+                                onAddPc = { startQrScan() },
+                                onUnlock = { service?.requestUnlock() },
+                                onLock = { service?.requestLock() },
                             )
                         }
+                        Screen.GRID -> {
+                            PcGridScreen(
+                                viewModel = pcGridViewModel,
+                                onOpenTags = { screen = Screen.TAGS },
+                                onOpenSettings = { screen = Screen.SETTINGS },
+                                onAddPc = { startQrScan() },
+                            )
+                        }
+                    }
+                    // Диалог имени новой метки — поверх любого экрана.
+                    val uid = pendingUid
+                    if (uid != null) {
+                        NameTagDialog(
+                            uid = uid,
+                            onConfirm = { name ->
+                                viewModel.registerOrRename(uid, name)
+                                pendingUid = null
+                            },
+                            onDismiss = { pendingUid = null },
+                        )
                     }
                 }
             }
