@@ -3,19 +3,41 @@
     android:height="24dp"
     android:viewportWidth="24"
     android:viewportHeight="24">
-    <!-- Ubuntu «Circle of Friends» (упрощённо): кольцо и три «друга». -->
+    <!-- Ubuntu «Circle of Friends»: оранжевый диск с белым кругом друзей. -->
+    <!-- Оранжевый диск-подложка. -->
+    <path
+        android:fillColor="#E95420"
+        android:pathData="M12,12m-11,0a11,11 0 1,0 22,0a11,11 0 1,0 -22,0" />
+    <!-- Белое кольцо круга друзей. -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.5"
+        android:fillColor="#00000000"
+        android:pathData="M12,12m-5.5,0a5.5,5.5 0 1,0 11,0a5.5,5.5 0 1,0 -11,0" />
+    <!-- Стебли от трёх голов к центру (перекрывают кольцо). -->
     <path
         android:strokeColor="#E95420"
-        android:strokeWidth="2"
-        android:fillColor="#00000000"
-        android:pathData="M12,12m-8,0a8,8 0 1,0 16,0a8,8 0 1,0 -16,0" />
+        android:strokeWidth="2.2"
+        android:strokeLineCap="round"
+        android:pathData="M17.5,12 L14.4,12" />
     <path
-        android:fillColor="#E95420"
-        android:pathData="M20,12m-2.2,0a2.2,2.2 0 1,0 4.4,0a2.2,2.2 0 1,0 -4.4,0" />
+        android:strokeColor="#E95420"
+        android:strokeWidth="2.2"
+        android:strokeLineCap="round"
+        android:pathData="M9.25,7.24 L10.8,9.92" />
     <path
-        android:fillColor="#E95420"
-        android:pathData="M8,18.93m-2.2,0a2.2,2.2 0 1,0 4.4,0a2.2,2.2 0 1,0 -4.4,0" />
+        android:strokeColor="#E95420"
+        android:strokeWidth="2.2"
+        android:strokeLineCap="round"
+        android:pathData="M9.25,16.76 L10.8,14.08" />
+    <!-- Три белые «головы» друзей. -->
     <path
-        android:fillColor="#E95420"
-        android:pathData="M8,5.07m-2.2,0a2.2,2.2 0 1,0 4.4,0a2.2,2.2 0 1,0 -4.4,0" />
+        android:fillColor="#FFFFFF"
+        android:pathData="M17.5,12m-1.8,0a1.8,1.8 0 1,0 3.6,0a1.8,1.8 0 1,0 -3.6,0" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M9.25,7.24m-1.8,0a1.8,1.8 0 1,0 3.6,0a1.8,1.8 0 1,0 -3.6,0" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M9.25,16.76m-1.8,0a1.8,1.8 0 1,0 3.6,0a1.8,1.8 0 1,0 -3.6,0" />
 </vector>
