@@ -7,35 +7,42 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.os.Binder
-import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import com.rfidunlock.app.R
 import com.rfidunlock.app.RfidApp
-import com.rfidunlock.app.kdeconnect.DeviceIdentity
-import com.rfidunlock.app.kdeconnect.KdeConnectClient
+import com.rfidunlock.app.data.ServerSettings
+import com.rfidunlock.app.data.SettingsRepository
+import com.rfidunlock.app.net.CommandResult
+import com.rfidunlock.app.net.TcpCommandClient
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 
 /**
- * Foreground-сервис: удерживает соединение KDE Connect с ПК и выполняет
- * отправку команд LOCK/UNLOCK. NFC и акселерометр живут в Activity и
- * дёргают сервис через [LocalBinder].
+ * Foreground-сервис: координирует отправку команд LOCK/UNLOCK на ПК по
+ * собственному TCP-каналу. NFC и акселерометр живут в Activity и дёргают
+ * сервис через [LocalBinder].
  */
 class RfidForegroundService : Service() {
 
     companion object {
         private const val CHANNEL_ID = "rfid_agent"
         private const val NOTIFICATION_ID = 1
-        const val COMMAND_LOCK = "rfid-lock"
-        const val COMMAND_UNLOCK = "rfid-unlock"
     }
 
     private val job = SupervisorJob()
     private val scope = CoroutineScope(job)
-    private lateinit var client: KdeConnectClient
+    private val client = TcpCommandClient()
+    private lateinit var settings: SettingsRepository
+
+    /** Последний результат операции (для индикации в UI). */
+    private val _lastResult = MutableStateFlow<CommandResult?>(null)
+    val lastResult: StateFlow<CommandResult?> = _lastResult
 
     inner class LocalBinder : Binder() {
         val service: RfidForegroundService get() = this@RfidForegroundService
@@ -45,11 +52,9 @@ class RfidForegroundService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        val identity = DeviceIdentity.loadOrCreate(this, "RFID Unlock (${Build.MODEL})")
-        client = KdeConnectClient(identity, scope)
+        settings = (application as RfidApp).settingsRepository
         createChannel()
         startForeground(NOTIFICATION_ID, buildNotification())
-        client.start()
     }
 
     override fun onBind(intent: Intent?): IBinder = binder
@@ -57,22 +62,25 @@ class RfidForegroundService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
 
     override fun onDestroy() {
-        client.stop()
         scope.cancel()
         super.onDestroy()
     }
 
     /** Отправить команду разблокировки на ПК. */
-    fun requestUnlock() = client.sendCommand(COMMAND_UNLOCK)
+    fun requestUnlock() = dispatch { client.unlock(it) }
 
     /** Отправить команду блокировки на ПК. */
-    fun requestLock() = client.sendCommand(COMMAND_LOCK)
+    fun requestLock() = dispatch { client.lock(it) }
 
-    /** Инициировать сопряжение с ПК. */
-    fun pair() = client.requestPair()
+    /** Проверить связь с ПК. */
+    fun checkStatus() = dispatch { client.status(it) }
 
-    val connectionState get() = client.state
-    val confirmations get() = client.incomingPings
+    private fun dispatch(action: suspend (ServerSettings) -> CommandResult) {
+        scope.launch {
+            val current = settings.settings.first()
+            _lastResult.value = action(current)
+        }
+    }
 
     private fun createChannel() {
         val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager

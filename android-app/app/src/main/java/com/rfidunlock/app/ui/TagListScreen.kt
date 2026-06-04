@@ -10,6 +10,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -29,11 +30,20 @@ import com.rfidunlock.app.data.Tag
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TagListScreen(viewModel: TagViewModel) {
+fun TagListScreen(viewModel: TagViewModel, onOpenSettings: () -> Unit = {}) {
     val tags by viewModel.tags.collectAsState()
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text("Метки RFID") }) }
+        topBar = {
+            TopAppBar(
+                title = { Text("Метки RFID") },
+                actions = {
+                    IconButton(onClick = onOpenSettings) {
+                        Icon(Icons.Default.Settings, contentDescription = "Настройки")
+                    }
+                },
+            )
+        }
     ) { padding ->
         if (tags.isEmpty()) {
             Column(

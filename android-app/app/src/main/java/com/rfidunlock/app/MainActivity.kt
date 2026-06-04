@@ -19,11 +19,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.lifecycleScope
+import com.rfidunlock.app.data.SettingsRepository
 import com.rfidunlock.app.data.TagRepository
 import com.rfidunlock.app.nfc.MotionTrigger
 import com.rfidunlock.app.nfc.NfcController
 import com.rfidunlock.app.service.RfidForegroundService
 import com.rfidunlock.app.ui.NameTagDialog
+import com.rfidunlock.app.ui.SettingsScreen
+import com.rfidunlock.app.ui.SettingsViewModel
 import com.rfidunlock.app.ui.TagListScreen
 import com.rfidunlock.app.ui.TagViewModel
 import kotlinx.coroutines.launch
@@ -31,8 +34,14 @@ import kotlinx.coroutines.launch
 class MainActivity : ComponentActivity() {
 
     private val repository: TagRepository by lazy { (application as RfidApp).tagRepository }
+    private val settingsRepository: SettingsRepository by lazy {
+        (application as RfidApp).settingsRepository
+    }
     private val viewModel: TagViewModel by viewModels {
         TagViewModel.Factory(repository)
+    }
+    private val settingsViewModel: SettingsViewModel by viewModels {
+        SettingsViewModel.Factory(settingsRepository)
     }
 
     private var service: RfidForegroundService? = null
@@ -42,13 +51,28 @@ class MainActivity : ComponentActivity() {
     /** UID только что обнаружённой неизвестной метки (для диалога имени). */
     private var pendingUid by mutableStateOf<String?>(null)
 
+    /** Текущий экран: false — список меток, true — настройки. */
+    private var showSettings by mutableStateOf(false)
+
+    /** Текст последнего результата операции (для индикации в настройках). */
+    private var statusText by mutableStateOf<String?>(null)
+
     /** UID последней активной метки на устройстве (для команды LOCK при снятии). */
     @Volatile
     private var lastEnabledUid: String? = null
 
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
-            service = (binder as RfidForegroundService.LocalBinder).service
+            val svc = (binder as RfidForegroundService.LocalBinder).service
+            service = svc
+            lifecycleScope.launch {
+                svc.lastResult.collect { result ->
+                    statusText = result?.let {
+                        if (it.ok) "Связь с ПК: OK (${it.detail})"
+                        else "Ошибка: ${it.detail}"
+                    }
+                }
+            }
         }
 
         override fun onServiceDisconnected(name: ComponentName?) {
@@ -81,17 +105,29 @@ class MainActivity : ComponentActivity() {
             }
             MaterialTheme(colorScheme = colorScheme) {
                 Surface {
-                    TagListScreen(viewModel)
-                    val uid = pendingUid
-                    if (uid != null) {
-                        NameTagDialog(
-                            uid = uid,
-                            onConfirm = { name ->
-                                viewModel.registerOrRename(uid, name)
-                                pendingUid = null
-                            },
-                            onDismiss = { pendingUid = null },
+                    if (showSettings) {
+                        SettingsScreen(
+                            viewModel = settingsViewModel,
+                            statusText = statusText,
+                            onBack = { showSettings = false },
+                            onTestConnection = { service?.checkStatus() },
                         )
+                    } else {
+                        TagListScreen(
+                            viewModel = viewModel,
+                            onOpenSettings = { showSettings = true },
+                        )
+                        val uid = pendingUid
+                        if (uid != null) {
+                            NameTagDialog(
+                                uid = uid,
+                                onConfirm = { name ->
+                                    viewModel.registerOrRename(uid, name)
+                                    pendingUid = null
+                                },
+                                onDismiss = { pendingUid = null },
+                            )
+                        }
                     }
                 }
             }
