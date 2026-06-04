@@ -1,0 +1,6 @@
+<resources>
+    <style name="Theme.RfidUnlock" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">#1565C0</item>
+        <item name="android:windowBackground">#FFFFFF</item>
+    </style>
+</resources>
