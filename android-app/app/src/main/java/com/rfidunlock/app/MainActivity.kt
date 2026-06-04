@@ -7,6 +7,9 @@ import android.content.ServiceConnection
 import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
@@ -47,6 +50,16 @@ class MainActivity : ComponentActivity() {
     private var service: RfidForegroundService? = null
     private lateinit var nfc: NfcController
     private lateinit var motion: MotionTrigger
+
+    /** Вибромотор для тактильного отклика при считывании метки. */
+    private val vibrator: Vibrator by lazy {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            (getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager).defaultVibrator
+        } else {
+            @Suppress("DEPRECATION")
+            getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+        }
+    }
 
     /** UID только что обнаружённой неизвестной метки (для диалога имени). */
     private var pendingUid by mutableStateOf<String?>(null)
@@ -153,6 +166,7 @@ class MainActivity : ComponentActivity() {
 
     /** Метка поднесена: если известна и активна — разблокировать ПК; иначе предложить добавить. */
     private fun handleTagAttached(uid: String) {
+        vibrateOnRead()
         lifecycleScope.launch {
             val tag = repository.findByUid(uid)
             when {
@@ -171,5 +185,14 @@ class MainActivity : ComponentActivity() {
         if (lastEnabledUid == null) return
         lastEnabledUid = null
         service?.requestLock()
+    }
+
+    /** Короткий вибро-отклик в момент считывания метки. */
+    private fun vibrateOnRead() {
+        runCatching {
+            if (!vibrator.hasVibrator()) return
+            val effect = VibrationEffect.createOneShot(80, VibrationEffect.DEFAULT_AMPLITUDE)
+            vibrator.vibrate(effect)
+        }
     }
 }
