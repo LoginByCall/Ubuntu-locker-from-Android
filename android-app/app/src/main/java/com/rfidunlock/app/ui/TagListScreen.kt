@@ -13,6 +13,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -27,6 +28,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.rfidunlock.app.data.Tag
+import com.rfidunlock.app.data.TagMode
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -66,6 +68,7 @@ fun TagListScreen(viewModel: TagViewModel, onOpenSettings: () -> Unit = {}) {
                     TagRow(
                         tag = tag,
                         onToggle = { viewModel.setEnabled(tag, it) },
+                        onModeChange = { viewModel.setMode(tag, it) },
                         onDelete = { viewModel.delete(tag) },
                     )
                 }
@@ -75,23 +78,51 @@ fun TagListScreen(viewModel: TagViewModel, onOpenSettings: () -> Unit = {}) {
 }
 
 @Composable
-private fun TagRow(tag: Tag, onToggle: (Boolean) -> Unit, onDelete: () -> Unit) {
+private fun TagRow(
+    tag: Tag,
+    onToggle: (Boolean) -> Unit,
+    onModeChange: (TagMode) -> Unit,
+    onDelete: () -> Unit,
+) {
     Card(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(tag.name, style = MaterialTheme.typography.titleMedium)
-                Text(
-                    tag.uid,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+        Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(tag.name, style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        tag.uid,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Switch(checked = tag.enabled, onCheckedChange = onToggle)
+                IconButton(onClick = onDelete) {
+                    Icon(Icons.Default.Delete, contentDescription = "Удалить")
+                }
             }
-            Switch(checked = tag.enabled, onCheckedChange = onToggle)
-            IconButton(onClick = onDelete) {
-                Icon(Icons.Default.Delete, contentDescription = "Удалить")
+            Text(
+                "Логика срабатывания:",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                FilterChip(
+                    selected = tag.mode == TagMode.PRESENCE,
+                    onClick = { onModeChange(TagMode.PRESENCE) },
+                    label = { Text("Присутствие") },
+                )
+                FilterChip(
+                    selected = tag.mode == TagMode.TOGGLE,
+                    onClick = { onModeChange(TagMode.TOGGLE) },
+                    label = { Text("Переключение") },
+                )
             }
         }
     }

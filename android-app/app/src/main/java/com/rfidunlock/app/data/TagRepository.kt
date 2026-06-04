@@ -25,5 +25,16 @@ class TagRepository(private val dao: TagDao) {
         dao.update(tag.copy(enabled = enabled, updatedAt = System.currentTimeMillis()))
     }
 
+    /** Сменить логику срабатывания метки. */
+    suspend fun setMode(tag: Tag, mode: TagMode) {
+        dao.update(tag.copy(mode = mode, updatedAt = System.currentTimeMillis()))
+    }
+
+    /** Зафиксировать следующее действие для режима TOGGLE. */
+    suspend fun setToggleNextLock(uid: String, nextLock: Boolean) {
+        val existing = dao.findByUid(uid) ?: return
+        dao.update(existing.copy(toggleNextLock = nextLock, updatedAt = System.currentTimeMillis()))
+    }
+
     suspend fun delete(tag: Tag) = dao.delete(tag)
 }

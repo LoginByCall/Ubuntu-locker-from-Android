@@ -4,8 +4,23 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.TypeConverter
+import androidx.room.TypeConverters
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [Tag::class], version = 1, exportSchema = false)
+/** Конвертеры типов Room. */
+class Converters {
+    @TypeConverter
+    fun toTagMode(value: String?): TagMode =
+        runCatching { TagMode.valueOf(value ?: "") }.getOrDefault(TagMode.PRESENCE)
+
+    @TypeConverter
+    fun fromTagMode(mode: TagMode): String = mode.name
+}
+
+@Database(entities = [Tag::class], version = 2, exportSchema = false)
+@TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun tagDao(): TagDao
 
@@ -13,13 +28,25 @@ abstract class AppDatabase : RoomDatabase() {
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
+        /** Миграция v1→v2: добавлены колонки режима срабатывания. */
+        private val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE tags ADD COLUMN mode TEXT NOT NULL DEFAULT 'PRESENCE'"
+                )
+                db.execSQL(
+                    "ALTER TABLE tags ADD COLUMN toggleNextLock INTEGER NOT NULL DEFAULT 1"
+                )
+            }
+        }
+
         fun get(context: Context): AppDatabase =
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
                     "rfid-unlock.db"
-                ).build().also { INSTANCE = it }
+                ).addMigrations(MIGRATION_1_2).build().also { INSTANCE = it }
             }
     }
 }

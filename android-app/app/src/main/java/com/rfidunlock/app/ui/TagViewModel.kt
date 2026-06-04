@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.rfidunlock.app.data.Tag
+import com.rfidunlock.app.data.TagMode
 import com.rfidunlock.app.data.TagRepository
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -21,6 +22,10 @@ class TagViewModel(private val repository: TagRepository) : ViewModel() {
 
     fun setEnabled(tag: Tag, enabled: Boolean) = viewModelScope.launch {
         repository.setEnabled(tag, enabled)
+    }
+
+    fun setMode(tag: Tag, mode: TagMode) = viewModelScope.launch {
+        repository.setMode(tag, mode)
     }
 
     fun delete(tag: Tag) = viewModelScope.launch {

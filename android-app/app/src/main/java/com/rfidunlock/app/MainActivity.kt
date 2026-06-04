@@ -4,6 +4,8 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
+import android.nfc.NfcAdapter
+import android.nfc.Tag
 import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
@@ -24,6 +26,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.lifecycleScope
 import com.rfidunlock.app.data.SettingsRepository
+import com.rfidunlock.app.data.TagMode
 import com.rfidunlock.app.data.TagRepository
 import com.rfidunlock.app.nfc.MotionTrigger
 import com.rfidunlock.app.nfc.NfcController
@@ -151,6 +154,33 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+
+        // Если приложение запущено по поднесению метки (intent от системы) — обработать UID.
+        handleNfcIntent(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleNfcIntent(intent)
+    }
+
+    /** Извлечь UID из NFC-intent (когда приложение открыто системой по метке). */
+    private fun handleNfcIntent(intent: Intent?) {
+        val action = intent?.action ?: return
+        if (action != NfcAdapter.ACTION_TAG_DISCOVERED &&
+            action != NfcAdapter.ACTION_TECH_DISCOVERED &&
+            action != NfcAdapter.ACTION_NDEF_DISCOVERED
+        ) return
+
+        @Suppress("DEPRECATION")
+        val tag: Tag? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            intent.getParcelableExtra(NfcAdapter.EXTRA_TAG, Tag::class.java)
+        } else {
+            intent.getParcelableExtra(NfcAdapter.EXTRA_TAG)
+        }
+        val uid = tag?.id?.joinToString("") { "%02X".format(it) } ?: return
+        handleTagAttached(uid)
     }
 
     override fun onResume() {
@@ -170,23 +200,31 @@ class MainActivity : ComponentActivity() {
         super.onDestroy()
     }
 
-    /** Метка поднесена: если известна и активна — разблокировать ПК; иначе предложить добавить. */
+    /** Метка поднесена: поведение зависит от выбранной логики метки. */
     private fun handleTagAttached(uid: String) {
         vibrateOnRead()
         lifecycleScope.launch {
             val tag = repository.findByUid(uid)
             when {
                 tag == null -> pendingUid = uid
-                tag.enabled -> {
+                !tag.enabled -> Unit // метка известна, но выключена — игнор
+                tag.mode == TagMode.TOGGLE -> {
+                    // Поочерёдно: первое касание — LOCK, второе — UNLOCK и т.д.
+                    if (tag.toggleNextLock) service?.requestLock()
+                    else service?.requestUnlock()
+                    repository.setToggleNextLock(uid, !tag.toggleNextLock)
+                    lastEnabledUid = null // в режиме переключения снятие не блокирует
+                }
+                else -> {
+                    // Режим «Присутствие»: поднесение — UNLOCK, снятие — LOCK.
                     lastEnabledUid = uid
                     service?.requestUnlock()
                 }
-                else -> Unit // метка известна, но выключена — игнор
             }
         }
     }
 
-    /** Метка снята: если последняя метка была активна — заблокировать ПК. */
+    /** Метка снята: блокировать ПК только для метки в режиме «Присутствие». */
     private fun handleTagRemoved() {
         if (lastEnabledUid == null) return
         lastEnabledUid = null
