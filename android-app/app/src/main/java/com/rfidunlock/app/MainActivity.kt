@@ -10,6 +10,7 @@ import android.os.IBinder
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
@@ -101,6 +102,11 @@ class MainActivity : ComponentActivity() {
             onTagRemoved = ::handleTagRemoved,
         )
         motion = MotionTrigger(this) { nfc.checkTagPresence() }
+
+        // Не давать экрану гаснуть: NFC Reader Mode активен только пока Activity
+        // на переднем плане. Для сценария «телефон на подставке с меткой» держим
+        // экран включённым, чтобы метка непрерывно считывалась без действий пользователя.
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
         startForegroundService(Intent(this, RfidForegroundService::class.java))
         bindService(
