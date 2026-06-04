@@ -4,6 +4,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
+import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
 import androidx.activity.ComponentActivity
@@ -12,6 +13,7 @@ import androidx.activity.viewModels
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.dynamicLightColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -72,7 +74,12 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val context = LocalContext.current
-            MaterialTheme(colorScheme = dynamicLightColorScheme(context)) {
+            val colorScheme = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                dynamicLightColorScheme(context)
+            } else {
+                lightColorScheme()
+            }
+            MaterialTheme(colorScheme = colorScheme) {
                 Surface {
                     TagListScreen(viewModel)
                     val uid = pendingUid
