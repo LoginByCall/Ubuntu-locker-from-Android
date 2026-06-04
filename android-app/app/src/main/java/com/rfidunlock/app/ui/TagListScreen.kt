@@ -11,11 +11,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -48,8 +45,6 @@ fun TagListScreen(
     viewModel: TagViewModel,
     onOpenSettings: () -> Unit = {},
     onAddPc: () -> Unit = {},
-    onUnlock: () -> Unit = {},
-    onLock: () -> Unit = {},
 ) {
     val tags by viewModel.tags.collectAsState()
     val profiles by viewModel.profiles.collectAsState()
@@ -71,19 +66,6 @@ fun TagListScreen(
         }
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(12.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Button(onClick = onUnlock, modifier = Modifier.weight(1f)) {
-                    Icon(Icons.Default.LockOpen, contentDescription = null)
-                    Text("  UNLOCK")
-                }
-                Button(onClick = onLock, modifier = Modifier.weight(1f)) {
-                    Icon(Icons.Default.Lock, contentDescription = null)
-                    Text("  LOCK")
-                }
-            }
             if (tags.isEmpty()) {
                 Column(
                     modifier = Modifier.fillMaxSize().padding(24.dp),

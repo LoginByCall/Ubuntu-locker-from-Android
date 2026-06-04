@@ -60,7 +60,7 @@ class MainActivity : ComponentActivity() {
         TagViewModel.Factory(repository, pcProfileRepository)
     }
     private val settingsViewModel: SettingsViewModel by viewModels {
-        SettingsViewModel.Factory(settingsRepository)
+        SettingsViewModel.Factory(settingsRepository, pcProfileRepository)
     }
     private val pcGridViewModel: PcGridViewModel by viewModels {
         PcGridViewModel.Factory(pcProfileRepository)
@@ -164,8 +164,6 @@ class MainActivity : ComponentActivity() {
                                 viewModel = viewModel,
                                 onOpenSettings = { screen = Screen.SETTINGS },
                                 onAddPc = { startQrScan() },
-                                onUnlock = { service?.requestUnlock() },
-                                onLock = { service?.requestLock() },
                             )
                         }
                         Screen.GRID -> {

@@ -10,8 +10,11 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -27,6 +30,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -41,6 +45,7 @@ fun SettingsScreen(
     onTestConnection: () -> Unit,
 ) {
     val settings by viewModel.settings.collectAsState()
+    val profiles by viewModel.profiles.collectAsState()
 
     var host by remember { mutableStateOf(settings.host) }
     var port by remember { mutableStateOf(settings.port.toString()) }
@@ -73,6 +78,41 @@ fun SettingsScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            Text("Профили ПК", style = MaterialTheme.typography.titleMedium)
+            if (profiles.isEmpty()) {
+                Text(
+                    "Нет добавленных профилей. Добавьте ПК, сканировав QR-код из трея агента.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                profiles.forEach { profile ->
+                    Card(modifier = Modifier.fillMaxWidth()) {
+                        androidx.compose.foundation.layout.Row(
+                            modifier = Modifier.fillMaxWidth().padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(profile.name, style = MaterialTheme.typography.titleSmall)
+                                Text(
+                                    "${profile.host}:${profile.port}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            IconButton(onClick = { viewModel.deleteProfile(profile) }) {
+                                Icon(Icons.Default.Delete, contentDescription = "Удалить профиль")
+                            }
+                        }
+                    }
+                }
+            }
+
+            HorizontalDivider()
+            Text(
+                "Ручное подключение (резерв)",
+                style = MaterialTheme.typography.titleMedium,
+            )
             OutlinedTextField(
                 value = host,
                 onValueChange = { host = it },
