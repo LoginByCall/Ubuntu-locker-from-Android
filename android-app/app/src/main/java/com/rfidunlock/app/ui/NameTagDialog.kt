@@ -14,17 +14,19 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
-/** Диалог присвоения имени новой NFC-метке. */
+/** Диалог присвоения или изменения имени NFC-метки. */
 @Composable
 fun NameTagDialog(
     uid: String,
     onConfirm: (String) -> Unit,
     onDismiss: () -> Unit,
+    initialName: String = "",
+    title: String = "Новая метка",
 ) {
-    var name by remember { mutableStateOf("") }
+    var name by remember { mutableStateOf(initialName) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Новая метка") },
+        title = { Text(title) },
         text = {
             Column {
                 Text("UID: $uid")
