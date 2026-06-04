@@ -14,13 +14,18 @@ SRC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BIN_DIR="$HOME/.local/bin"
 CONF_DIR="$HOME/.config/rfid-agent"
 UNIT_DIR="$HOME/.config/systemd/user"
+AUTOSTART_DIR="$HOME/.config/autostart"
 PORT="${RFID_PORT:-5390}"
 
-mkdir -p "$BIN_DIR" "$CONF_DIR" "$UNIT_DIR"
+mkdir -p "$BIN_DIR" "$CONF_DIR" "$UNIT_DIR" "$AUTOSTART_DIR"
 
 # 1. Скрипт сервера
 install -m 0755 "$SRC_DIR/rfid-server.py" "$BIN_DIR/rfid-server.py"
 echo "Установлен сервер: $BIN_DIR/rfid-server.py"
+
+# 1b. Tray-приложение для показа QR-кода профиля ПК
+install -m 0755 "$SRC_DIR/rfid-tray.py" "$BIN_DIR/rfid-tray.py"
+echo "Установлен tray: $BIN_DIR/rfid-tray.py"
 
 # 2. Токен
 TOKEN_FILE="$CONF_DIR/token"
@@ -56,6 +61,41 @@ systemctl --user daemon-reload
 systemctl --user enable --now rfid-server.service
 echo
 
+# 4b. Зависимости для tray-приложения (QR-код) и автозапуск.
+# Используем изолированный venv (на современных Ubuntu pip --user заблокирован, PEP 668).
+# --system-site-packages — чтобы был доступен системный PyGObject (gi) для
+# appindicator-бэкенда трея на GNOME/Ubuntu.
+VENV_DIR="$HOME/.local/share/rfid-agent/venv"
+echo "Создание venv и установка зависимостей tray (pystray qrcode pillow) ..."
+if python3 -m venv --system-site-packages "$VENV_DIR" 2>/dev/null && \
+   "$VENV_DIR/bin/pip" install --quiet --upgrade pip >/dev/null 2>&1 && \
+   "$VENV_DIR/bin/pip" install --quiet pystray "qrcode[pil]" pillow; then
+    echo "Зависимости tray установлены в $VENV_DIR."
+    DESKTOP_FILE="$AUTOSTART_DIR/rfid-tray.desktop"
+    cat >"$DESKTOP_FILE" <<EOF
+[Desktop Entry]
+Type=Application
+Name=RFID Unlock — профиль ПК
+Comment=Иконка в трее для показа QR-кода профиля ПК
+Exec=$VENV_DIR/bin/python $BIN_DIR/rfid-tray.py
+Icon=changes-prevent-symbolic
+Terminal=false
+X-GNOME-Autostart-enabled=true
+EOF
+    echo "Создан автозапуск: $DESKTOP_FILE"
+    # запустить tray сразу (если есть графическая сессия)
+    if [[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]]; then
+        nohup "$VENV_DIR/bin/python" "$BIN_DIR/rfid-tray.py" >/dev/null 2>&1 &
+        echo "Tray запущен."
+    fi
+else
+    echo "ВНИМАНИЕ: не удалось установить зависимости tray. QR-код будет недоступен."
+    echo "Установите вручную:"
+    echo "  python3 -m venv $VENV_DIR"
+    echo "  $VENV_DIR/bin/pip install pystray 'qrcode[pil]' pillow"
+fi
+echo
+
 # 5. Подсказка по подключению
 IP="$(ip -4 -o addr show scope global 2>/dev/null | awk '{print $4}' | cut -d/ -f1 | head -1)"
 echo "============================================================"
@@ -64,7 +104,13 @@ echo "   IP ПК:  ${IP:-<определите вручную>}"
 echo "   Порт:   $PORT"
 echo "   Токен:  $TOKEN"
 echo
-echo " Введите эти данные в Android-приложении (экран Настройки)."
+echo " Подключение в Android-приложении:"
+echo "   - проще всего: иконка в трее → «Показать QR-код» → сканировать;"
+echo "   - вручную: ввести IP/порт/токен на экране настроек."
+echo
+echo " На GNOME для иконки в трее нужно расширение AppIndicator"
+echo " (sudo apt install gnome-shell-extension-appindicator,"
+echo "  затем включить «Ubuntu AppIndicators» и перелогиниться)."
 echo " Журнал: ~/.local/state/rfid-agent/rfid-server.log"
 echo " Статус: systemctl --user status rfid-server.service"
 echo "============================================================"
