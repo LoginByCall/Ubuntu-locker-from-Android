@@ -13,6 +13,7 @@ import androidx.room.PrimaryKey
  * @param host IP-адрес ПК в локальной сети.
  * @param port TCP-порт агента.
  * @param token предварительный токен для аутентификации команд.
+ * @param os семейство ОС ПК (ubuntu/linux/windows/macos) для иконки на плитке.
  * @param createdAt время добавления (epoch millis).
  * @param updatedAt время последнего изменения (epoch millis).
  */
@@ -23,6 +24,7 @@ data class PcProfile(
     val host: String,
     val port: Int = 5390,
     val token: String = "",
+    val os: String = "",
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis(),
 ) {

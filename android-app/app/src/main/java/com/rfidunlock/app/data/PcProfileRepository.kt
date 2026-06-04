@@ -23,6 +23,7 @@ class PcProfileRepository(private val dao: PcProfileDao) {
                     host = profile.host,
                     port = profile.port,
                     token = profile.token,
+                    os = profile.os,
                     updatedAt = System.currentTimeMillis(),
                 )
             )

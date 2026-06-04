@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import json
 import os
+import platform
 import socket
 import subprocess
 import tempfile
@@ -87,6 +88,24 @@ def lan_ip() -> str:
         return "127.0.0.1"
 
 
+def os_family() -> str:
+    """Семейство ОС для иконки на плитке: ubuntu/linux/windows/macos."""
+    system = platform.system().lower()
+    if system == "linux":
+        try:
+            data = Path("/etc/os-release").read_text(encoding="utf-8").lower()
+            if "ubuntu" in data:
+                return "ubuntu"
+        except OSError:
+            pass
+        return "linux"
+    if system == "darwin":
+        return "macos"
+    if system == "windows":
+        return "windows"
+    return system or "unknown"
+
+
 def build_payload() -> str:
     """Сформировать JSON-профиль для QR-кода."""
     return json.dumps(
@@ -97,6 +116,7 @@ def build_payload() -> str:
             "host": lan_ip(),
             "port": PORT,
             "token": read_token(),
+            "os": os_family(),
         },
         ensure_ascii=False,
     )

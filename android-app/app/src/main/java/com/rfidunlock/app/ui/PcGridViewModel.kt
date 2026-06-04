@@ -49,17 +49,13 @@ class PcGridViewModel(
     /** Переключить состояние ПК: заблокирован → разблокировать, иначе заблокировать. */
     fun toggle(profile: PcProfile) {
         viewModelScope.launch {
-            val status = _statuses.value[profile.id] ?: queryStatus(profile).also {
-                setStatus(profile.id, it)
-            }
+            // Всегда запрашиваем актуальный статус перед действием — кэш может устареть.
+            val status = queryStatus(profile)
+            setStatus(profile.id, status)
             val result: CommandResult = when (status) {
                 PcStatus.LOCKED -> client.unlock(profile.toServerSettings())
                 PcStatus.UNLOCKED -> client.lock(profile.toServerSettings())
-                else -> {
-                    // Статус неизвестен/недоступен — повторно запросим.
-                    setStatus(profile.id, queryStatus(profile))
-                    return@launch
-                }
+                else -> return@launch // OFFLINE/UNKNOWN — переключать нечего
             }
             if (result.ok) {
                 setStatus(profile.id, queryStatus(profile))
@@ -72,10 +68,11 @@ class PcGridViewModel(
     private suspend fun queryStatus(profile: PcProfile): PcStatus {
         val result = client.status(profile.toServerSettings())
         if (!result.ok) return PcStatus.OFFLINE
-        // detail вида "locked=true" / "locked=false"
+        // detail вида "locked=<LockedHint>", где LockedHint = yes/no (loginctl).
+        val detail = result.detail.lowercase()
         return when {
-            result.detail.contains("locked=true", ignoreCase = true) -> PcStatus.LOCKED
-            result.detail.contains("locked=false", ignoreCase = true) -> PcStatus.UNLOCKED
+            detail.contains("locked=yes") || detail.contains("locked=true") -> PcStatus.LOCKED
+            detail.contains("locked=no") || detail.contains("locked=false") -> PcStatus.UNLOCKED
             else -> PcStatus.UNKNOWN
         }
     }
