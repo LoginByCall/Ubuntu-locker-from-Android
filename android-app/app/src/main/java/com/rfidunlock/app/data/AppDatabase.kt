@@ -19,10 +19,11 @@ class Converters {
     fun fromTagMode(mode: TagMode): String = mode.name
 }
 
-@Database(entities = [Tag::class], version = 2, exportSchema = false)
+@Database(entities = [Tag::class, PcProfile::class], version = 3, exportSchema = false)
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun tagDao(): TagDao
+    abstract fun pcProfileDao(): PcProfileDao
 
     companion object {
         @Volatile
@@ -40,13 +41,33 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** Миграция v2→v3: профили ПК и привязка меток к профилю. */
+        private val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS pc_profiles (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        name TEXT NOT NULL,
+                        host TEXT NOT NULL,
+                        port INTEGER NOT NULL,
+                        token TEXT NOT NULL,
+                        createdAt INTEGER NOT NULL,
+                        updatedAt INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL("ALTER TABLE tags ADD COLUMN profileId TEXT")
+            }
+        }
+
         fun get(context: Context): AppDatabase =
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
                     "rfid-unlock.db"
-                ).addMigrations(MIGRATION_1_2).build().also { INSTANCE = it }
+                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3).build().also { INSTANCE = it }
             }
     }
 }

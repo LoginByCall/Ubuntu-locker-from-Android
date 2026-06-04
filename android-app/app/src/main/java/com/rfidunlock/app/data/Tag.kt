@@ -12,6 +12,8 @@ import androidx.room.PrimaryKey
  * @param mode логика срабатывания (присутствие / переключение).
  * @param toggleNextLock для режима TOGGLE: какое действие выполнить при следующем
  *        поднесении (true — LOCK, false — UNLOCK). По умолчанию первое действие — LOCK.
+ * @param profileId идентификатор привязанного профиля ПК; null — «универсальная» метка
+ *        (при считывании просто открывает экран плиток ПК).
  * @param createdAt время создания записи (epoch millis).
  * @param updatedAt время последнего изменения (epoch millis).
  */
@@ -22,6 +24,7 @@ data class Tag(
     val enabled: Boolean = true,
     val mode: TagMode = TagMode.PRESENCE,
     val toggleNextLock: Boolean = true,
+    val profileId: String? = null,
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis(),
 )

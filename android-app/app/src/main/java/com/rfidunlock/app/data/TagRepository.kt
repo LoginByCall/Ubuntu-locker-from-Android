@@ -36,5 +36,10 @@ class TagRepository(private val dao: TagDao) {
         dao.update(existing.copy(toggleNextLock = nextLock, updatedAt = System.currentTimeMillis()))
     }
 
+    /** Привязать метку к профилю ПК (null — «универсальная»). */
+    suspend fun setProfile(tag: Tag, profileId: String?) {
+        dao.update(tag.copy(profileId = profileId, updatedAt = System.currentTimeMillis()))
+    }
+
     suspend fun delete(tag: Tag) = dao.delete(tag)
 }
