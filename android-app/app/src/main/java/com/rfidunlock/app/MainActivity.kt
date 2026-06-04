@@ -13,8 +13,10 @@ import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
 import android.view.WindowManager
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.registerForActivityResult
 import androidx.activity.viewModels
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -25,6 +27,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.lifecycleScope
+import com.rfidunlock.app.data.PcProfileRepository
+import com.rfidunlock.app.data.ProfileQr
 import com.rfidunlock.app.data.SettingsRepository
 import com.rfidunlock.app.data.TagMode
 import com.rfidunlock.app.data.TagRepository
@@ -36,6 +40,8 @@ import com.rfidunlock.app.ui.SettingsScreen
 import com.rfidunlock.app.ui.SettingsViewModel
 import com.rfidunlock.app.ui.TagListScreen
 import com.rfidunlock.app.ui.TagViewModel
+import com.journeyapps.barcodescanner.ScanContract
+import com.journeyapps.barcodescanner.ScanOptions
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -43,6 +49,9 @@ class MainActivity : ComponentActivity() {
     private val repository: TagRepository by lazy { (application as RfidApp).tagRepository }
     private val settingsRepository: SettingsRepository by lazy {
         (application as RfidApp).settingsRepository
+    }
+    private val pcProfileRepository: PcProfileRepository by lazy {
+        (application as RfidApp).pcProfileRepository
     }
     private val viewModel: TagViewModel by viewModels {
         TagViewModel.Factory(repository)
@@ -54,6 +63,11 @@ class MainActivity : ComponentActivity() {
     private var service: RfidForegroundService? = null
     private lateinit var nfc: NfcController
     private lateinit var motion: MotionTrigger
+
+    /** Запуск сканера QR-кода профиля ПК (ZXing). */
+    private val qrScanLauncher = registerForActivityResult(ScanContract()) { result ->
+        result.contents?.let { handleScannedProfile(it) }
+    }
 
     /** Вибромотор для тактильного отклика при считывании метки. */
     private val vibrator: Vibrator by lazy {
@@ -138,6 +152,7 @@ class MainActivity : ComponentActivity() {
                         TagListScreen(
                             viewModel = viewModel,
                             onOpenSettings = { showSettings = true },
+                            onAddPc = { startQrScan() },
                             onUnlock = { service?.requestUnlock() },
                             onLock = { service?.requestLock() },
                         )
@@ -231,6 +246,33 @@ class MainActivity : ComponentActivity() {
         if (lastEnabledUid == null) return
         lastEnabledUid = null
         service?.requestLock()
+    }
+
+    /** Запустить сканер QR-кода профиля ПК. */
+    private fun startQrScan() {
+        val options = ScanOptions().apply {
+            setDesiredBarcodeFormats(ScanOptions.QR_CODE)
+            setPrompt("Наведите камеру на QR-код профиля ПК")
+            setBeepEnabled(false)
+            setOrientationLocked(false)
+        }
+        qrScanLauncher.launch(options)
+    }
+
+    /** Обработать отсканированный QR: разобрать и сохранить профиль ПК. */
+    private fun handleScannedProfile(raw: String) {
+        when (val result = ProfileQr.parse(raw)) {
+            is ProfileQr.Result.Ok -> lifecycleScope.launch {
+                pcProfileRepository.save(result.profile)
+                Toast.makeText(
+                    this@MainActivity,
+                    "ПК добавлен: ${result.profile.name}",
+                    Toast.LENGTH_SHORT,
+                ).show()
+            }
+            is ProfileQr.Result.Error ->
+                Toast.makeText(this, result.message, Toast.LENGTH_LONG).show()
+        }
     }
 
     /** Короткий вибро-отклик в момент считывания метки. */

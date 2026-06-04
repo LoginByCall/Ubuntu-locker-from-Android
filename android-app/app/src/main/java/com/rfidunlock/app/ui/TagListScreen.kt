@@ -13,6 +13,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LockOpen
+import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -42,6 +43,7 @@ import com.rfidunlock.app.data.TagMode
 fun TagListScreen(
     viewModel: TagViewModel,
     onOpenSettings: () -> Unit = {},
+    onAddPc: () -> Unit = {},
     onUnlock: () -> Unit = {},
     onLock: () -> Unit = {},
 ) {
@@ -53,6 +55,9 @@ fun TagListScreen(
             TopAppBar(
                 title = { Text("Метки RFID") },
                 actions = {
+                    IconButton(onClick = onAddPc) {
+                        Icon(Icons.Default.QrCodeScanner, contentDescription = "Добавить ПК (QR)")
+                    }
                     IconButton(onClick = onOpenSettings) {
                         Icon(Icons.Default.Settings, contentDescription = "Настройки")
                     }

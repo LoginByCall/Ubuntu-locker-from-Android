@@ -73,6 +73,9 @@ dependencies {
     // DataStore (настройки)
     implementation("androidx.datastore:datastore-preferences:1.1.1")
 
+    // ZXing — сканирование QR-кода профиля ПК
+    implementation("com.journeyapps:zxing-android-embedded:4.3.0")
+
     // Bouncy Castle для генерации self-signed сертификата KDE Connect
     implementation("org.bouncycastle:bcpkix-jdk18on:1.78.1")
 
