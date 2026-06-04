@@ -29,6 +29,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.lifecycleScope
 import com.rfidunlock.app.data.PcProfileRepository
 import com.rfidunlock.app.data.ProfileQr
+import com.rfidunlock.app.data.ServerSettings
 import com.rfidunlock.app.data.SettingsRepository
 import com.rfidunlock.app.data.TagMode
 import com.rfidunlock.app.data.TagRepository
@@ -56,7 +57,7 @@ class MainActivity : ComponentActivity() {
         (application as RfidApp).pcProfileRepository
     }
     private val viewModel: TagViewModel by viewModels {
-        TagViewModel.Factory(repository)
+        TagViewModel.Factory(repository, pcProfileRepository)
     }
     private val settingsViewModel: SettingsViewModel by viewModels {
         SettingsViewModel.Factory(settingsRepository)
@@ -97,6 +98,10 @@ class MainActivity : ComponentActivity() {
     /** UID последней активной метки на устройстве (для команды LOCK при снятии). */
     @Volatile
     private var lastEnabledUid: String? = null
+
+    /** Целевой ПК для LOCK при снятии метки в режиме «Присутствие». */
+    @Volatile
+    private var lastEnabledTarget: ServerSettings? = null
 
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
@@ -241,17 +246,39 @@ class MainActivity : ComponentActivity() {
             when {
                 tag == null -> pendingUid = uid
                 !tag.enabled -> Unit // метка известна, но выключена — игнор
-                tag.mode == TagMode.TOGGLE -> {
-                    // Поочерёдно: первое касание — LOCK, второе — UNLOCK и т.д.
-                    if (tag.toggleNextLock) service?.requestLock()
-                    else service?.requestUnlock()
-                    repository.setToggleNextLock(uid, !tag.toggleNextLock)
-                    lastEnabledUid = null // в режиме переключения снятие не блокирует
+                tag.profileId == null -> {
+                    // «Универсальная» метка — просто открыть экран плиток ПК.
+                    lastEnabledUid = null
+                    lastEnabledTarget = null
+                    screen = Screen.GRID
                 }
                 else -> {
-                    // Режим «Присутствие»: поднесение — UNLOCK, снятие — LOCK.
-                    lastEnabledUid = uid
-                    service?.requestUnlock()
+                    val profile = pcProfileRepository.findById(tag.profileId)
+                    if (profile == null) {
+                        Toast.makeText(
+                            this@MainActivity,
+                            "Профиль ПК для метки не найден",
+                            Toast.LENGTH_SHORT,
+                        ).show()
+                        return@launch
+                    }
+                    val target = profile.toServerSettings()
+                    when (tag.mode) {
+                        TagMode.TOGGLE -> {
+                            // Поочерёдно: LOCK / UNLOCK.
+                            if (tag.toggleNextLock) service?.requestLock(target)
+                            else service?.requestUnlock(target)
+                            repository.setToggleNextLock(uid, !tag.toggleNextLock)
+                            lastEnabledUid = null
+                            lastEnabledTarget = null
+                        }
+                        else -> {
+                            // Режим «Присутствие»: поднесение — UNLOCK, снятие — LOCK.
+                            lastEnabledUid = uid
+                            lastEnabledTarget = target
+                            service?.requestUnlock(target)
+                        }
+                    }
                 }
             }
         }
@@ -259,9 +286,10 @@ class MainActivity : ComponentActivity() {
 
     /** Метка снята: блокировать ПК только для метки в режиме «Присутствие». */
     private fun handleTagRemoved() {
-        if (lastEnabledUid == null) return
+        val target = lastEnabledTarget ?: return
         lastEnabledUid = null
-        service?.requestLock()
+        lastEnabledTarget = null
+        service?.requestLock(target)
     }
 
     /** Запустить сканер QR-кода профиля ПК. */

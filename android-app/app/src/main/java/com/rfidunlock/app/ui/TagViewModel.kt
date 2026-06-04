@@ -3,6 +3,8 @@ package com.rfidunlock.app.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.rfidunlock.app.data.PcProfile
+import com.rfidunlock.app.data.PcProfileRepository
 import com.rfidunlock.app.data.Tag
 import com.rfidunlock.app.data.TagMode
 import com.rfidunlock.app.data.TagRepository
@@ -11,9 +13,15 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-class TagViewModel(private val repository: TagRepository) : ViewModel() {
+class TagViewModel(
+    private val repository: TagRepository,
+    private val pcProfileRepository: PcProfileRepository,
+) : ViewModel() {
 
     val tags: StateFlow<List<Tag>> = repository.tags
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val profiles: StateFlow<List<PcProfile>> = pcProfileRepository.profiles
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     fun registerOrRename(uid: String, name: String) = viewModelScope.launch {
@@ -28,13 +36,21 @@ class TagViewModel(private val repository: TagRepository) : ViewModel() {
         repository.setMode(tag, mode)
     }
 
+    /** Привязать метку к профилю ПК (null — «универсальная» метка). */
+    fun setProfile(tag: Tag, profileId: String?) = viewModelScope.launch {
+        repository.setProfile(tag, profileId)
+    }
+
     fun delete(tag: Tag) = viewModelScope.launch {
         repository.delete(tag)
     }
 
-    class Factory(private val repository: TagRepository) : ViewModelProvider.Factory {
+    class Factory(
+        private val repository: TagRepository,
+        private val pcProfileRepository: PcProfileRepository,
+    ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T =
-            TagViewModel(repository) as T
+            TagViewModel(repository, pcProfileRepository) as T
     }
 }

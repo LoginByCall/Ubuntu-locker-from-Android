@@ -17,6 +17,8 @@ import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -25,6 +27,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -35,6 +38,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.rfidunlock.app.data.PcProfile
 import com.rfidunlock.app.data.Tag
 import com.rfidunlock.app.data.TagMode
 
@@ -48,6 +52,7 @@ fun TagListScreen(
     onLock: () -> Unit = {},
 ) {
     val tags by viewModel.tags.collectAsState()
+    val profiles by viewModel.profiles.collectAsState()
     var editingTag by remember { mutableStateOf<Tag?>(null) }
 
     Scaffold(
@@ -99,8 +104,10 @@ fun TagListScreen(
                     items(tags, key = { it.uid }) { tag ->
                         TagRow(
                             tag = tag,
+                            profiles = profiles,
                             onToggle = { viewModel.setEnabled(tag, it) },
                             onModeChange = { viewModel.setMode(tag, it) },
+                            onProfileChange = { viewModel.setProfile(tag, it) },
                             onEdit = { editingTag = tag },
                             onDelete = { viewModel.delete(tag) },
                         )
@@ -128,8 +135,10 @@ fun TagListScreen(
 @Composable
 private fun TagRow(
     tag: Tag,
+    profiles: List<PcProfile>,
     onToggle: (Boolean) -> Unit,
     onModeChange: (TagMode) -> Unit,
+    onProfileChange: (String?) -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
 ) {
@@ -174,6 +183,51 @@ private fun TagRow(
                     selected = tag.mode == TagMode.TOGGLE,
                     onClick = { onModeChange(TagMode.TOGGLE) },
                     label = { Text("Переключение") },
+                )
+            }
+            ProfilePicker(
+                profiles = profiles,
+                selectedId = tag.profileId,
+                onSelect = onProfileChange,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ProfilePicker(
+    profiles: List<PcProfile>,
+    selectedId: String?,
+    onSelect: (String?) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val currentName = profiles.firstOrNull { it.id == selectedId }?.name
+        ?: "Универсальная (любой ПК)"
+    Text(
+        "Привязка к ПК:",
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(top = 8.dp),
+    )
+    Row(modifier = Modifier.fillMaxWidth()) {
+        TextButton(onClick = { expanded = true }) {
+            Text(currentName)
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            DropdownMenuItem(
+                text = { Text("Универсальная (любой ПК)") },
+                onClick = {
+                    onSelect(null)
+                    expanded = false
+                },
+            )
+            profiles.forEach { profile ->
+                DropdownMenuItem(
+                    text = { Text(profile.name) },
+                    onClick = {
+                        onSelect(profile.id)
+                        expanded = false
+                    },
                 )
             }
         }

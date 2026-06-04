@@ -75,10 +75,25 @@ class RfidForegroundService : Service() {
     /** Проверить связь с ПК. */
     fun checkStatus() = dispatch { client.status(it) }
 
+    /** Разблокировать конкретный ПК (профиль). */
+    fun requestUnlock(target: ServerSettings) = dispatchTo(target) { client.unlock(it) }
+
+    /** Заблокировать конкретный ПК (профиль). */
+    fun requestLock(target: ServerSettings) = dispatchTo(target) { client.lock(it) }
+
     private fun dispatch(action: suspend (ServerSettings) -> CommandResult) {
         scope.launch {
             val current = settings.settings.first()
             _lastResult.value = action(current)
+        }
+    }
+
+    private fun dispatchTo(
+        target: ServerSettings,
+        action: suspend (ServerSettings) -> CommandResult,
+    ) {
+        scope.launch {
+            _lastResult.value = action(target)
         }
     }
 
