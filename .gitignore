@@ -1,0 +1,29 @@
+# Build outputs
+android-app/build/
+android-app/app/build/
+android-app/**/build/
+**/build/
+
+# Gradle
+android-app/.gradle/
+.gradle/
+android-app/local.properties
+
+# APK / artifacts
+*.apk
+*.aab
+*.ap_
+*.dex
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# Keystores / secrets
+*.p12
+*.jks
+*.keystore
+
+# OS
+.DS_Store
