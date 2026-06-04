@@ -138,6 +138,8 @@ class MainActivity : ComponentActivity() {
                         TagListScreen(
                             viewModel = viewModel,
                             onOpenSettings = { showSettings = true },
+                            onUnlock = { service?.requestUnlock() },
+                            onLock = { service?.requestLock() },
                         )
                         val uid = pendingUid
                         if (uid != null) {

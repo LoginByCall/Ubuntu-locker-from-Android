@@ -11,7 +11,10 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -36,7 +39,12 @@ import com.rfidunlock.app.data.TagMode
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TagListScreen(viewModel: TagViewModel, onOpenSettings: () -> Unit = {}) {
+fun TagListScreen(
+    viewModel: TagViewModel,
+    onOpenSettings: () -> Unit = {},
+    onUnlock: () -> Unit = {},
+    onLock: () -> Unit = {},
+) {
     val tags by viewModel.tags.collectAsState()
     var editingTag by remember { mutableStateOf<Tag?>(null) }
 
@@ -52,31 +60,46 @@ fun TagListScreen(viewModel: TagViewModel, onOpenSettings: () -> Unit = {}) {
             )
         }
     ) { padding ->
-        if (tags.isEmpty()) {
-            Column(
-                modifier = Modifier.fillMaxSize().padding(padding).padding(24.dp),
-                verticalArrangement = Arrangement.Center,
-                horizontalAlignment = Alignment.CenterHorizontally,
+        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Text(
-                    "Поднесите смартфон к NFC-метке, чтобы добавить её.",
-                    style = MaterialTheme.typography.bodyLarge,
-                )
+                Button(onClick = onUnlock, modifier = Modifier.weight(1f)) {
+                    Icon(Icons.Default.LockOpen, contentDescription = null)
+                    Text("  UNLOCK")
+                }
+                Button(onClick = onLock, modifier = Modifier.weight(1f)) {
+                    Icon(Icons.Default.Lock, contentDescription = null)
+                    Text("  LOCK")
+                }
             }
-        } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(padding),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(12.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                items(tags, key = { it.uid }) { tag ->
-                    TagRow(
-                        tag = tag,
-                        onToggle = { viewModel.setEnabled(tag, it) },
-                        onModeChange = { viewModel.setMode(tag, it) },
-                        onEdit = { editingTag = tag },
-                        onDelete = { viewModel.delete(tag) },
+            if (tags.isEmpty()) {
+                Column(
+                    modifier = Modifier.fillMaxSize().padding(24.dp),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Text(
+                        "Поднесите смартфон к NFC-метке, чтобы добавить её.",
+                        style = MaterialTheme.typography.bodyLarge,
                     )
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    items(tags, key = { it.uid }) { tag ->
+                        TagRow(
+                            tag = tag,
+                            onToggle = { viewModel.setEnabled(tag, it) },
+                            onModeChange = { viewModel.setMode(tag, it) },
+                            onEdit = { editingTag = tag },
+                            onDelete = { viewModel.delete(tag) },
+                        )
+                    }
                 }
             }
         }
