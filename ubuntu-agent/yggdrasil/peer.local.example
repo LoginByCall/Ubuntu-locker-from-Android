@@ -1,0 +1,16 @@
+# Пример конфигурации публичного Yggdrasil-пира для приватной mesh.
+#
+# Реальные адреса/доступы НЕ хранятся в репозитории. Скопируйте этот файл в
+# `peer.local` (он в .gitignore) и подставьте свои значения, либо держите их
+# в приватном менеджере секретов.
+#
+#   cp peer.local.example peer.local
+#
+# Поля:
+#   PEER_URI   — адрес Yggdrasil-пира для строки Peers в yggdrasil.conf,
+#                напр. tls://<vps-ip>:<ygg-port> или quic://<vps-ip>:<ygg-port>
+#   VPS_SSH    — как администрировать VPS (порт/пользователь/host) — только для
+#                развёртывания пира, в саму mesh не входит.
+
+PEER_URI="tls://<vps-ip>:<ygg-port>"
+VPS_SSH="ssh -p <ssh-port> <user>@<vps-ip>"

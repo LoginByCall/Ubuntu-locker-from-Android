@@ -25,5 +25,16 @@ android-app/local.properties
 *.jks
 *.keystore
 
+# Python (ubuntu-agent)
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Yggdrasil / deploy — реальные адреса пиров держим вне репозитория
+ubuntu-agent/yggdrasil/*.local
+*.local.conf
+
 # OS
 .DS_Store
