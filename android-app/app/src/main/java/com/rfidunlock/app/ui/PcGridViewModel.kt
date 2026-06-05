@@ -86,6 +86,14 @@ class PcGridViewModel(
         _statuses.update { it + (id to status) }
     }
 
+    /** Удалить профиль ПК. */
+    fun delete(profile: PcProfile) {
+        viewModelScope.launch {
+            repository.delete(profile)
+            _statuses.update { it - profile.id }
+        }
+    }
+
     class Factory(private val repository: PcProfileRepository) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
