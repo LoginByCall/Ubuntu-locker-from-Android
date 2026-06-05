@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
@@ -58,6 +59,10 @@ class PcGridViewModel(
                 else -> return@launch // OFFLINE/UNKNOWN — переключать нечего
             }
             if (result.ok) {
+                setStatus(profile.id, queryStatus(profile))
+                // Разовое обновление статуса через 2 c: ПК мог завершить переход
+                // (особенно разблокировку) с задержкой относительно ответа на команду.
+                delay(2000)
                 setStatus(profile.id, queryStatus(profile))
             } else {
                 setStatus(profile.id, PcStatus.OFFLINE)

@@ -1,8 +1,10 @@
 package com.rfidunlock.app
 
+import android.content.BroadcastReceiver
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.ServiceConnection
 import android.nfc.NfcAdapter
 import android.nfc.Tag
@@ -69,6 +71,19 @@ class MainActivity : ComponentActivity() {
     private var service: RfidForegroundService? = null
     private lateinit var nfc: NfcController
     private lateinit var motion: MotionTrigger
+
+    /**
+     * Приёмник события отключения зарядки (телефон сняли с Type-C докстанции).
+     * Снятие телефона с заряжающей подставки трактуется как «метка снята» —
+     * надёжный сигнал для блокировки ПК, не зависящий от опроса NFC.
+     */
+    private val powerDisconnectReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == Intent.ACTION_POWER_DISCONNECTED) {
+                handleTagRemoved()
+            }
+        }
+    }
 
     /** Запуск сканера QR-кода профиля ПК (ZXing). */
     private val qrScanLauncher = registerForActivityResult(ScanContract()) { result ->
@@ -162,6 +177,7 @@ class MainActivity : ComponentActivity() {
                         Screen.TAGS -> {
                             TagListScreen(
                                 viewModel = viewModel,
+                                onOpenGrid = { screen = Screen.GRID },
                                 onOpenSettings = { screen = Screen.SETTINGS },
                                 onAddPc = { startQrScan() },
                             )
@@ -223,12 +239,17 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         nfc.enable(this)
         motion.start()
+        registerReceiver(
+            powerDisconnectReceiver,
+            IntentFilter(Intent.ACTION_POWER_DISCONNECTED),
+        )
     }
 
     override fun onPause() {
         super.onPause()
         nfc.disable(this)
         motion.stop()
+        runCatching { unregisterReceiver(powerDisconnectReceiver) }
     }
 
     override fun onDestroy() {
