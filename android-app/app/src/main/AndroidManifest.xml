@@ -49,5 +49,58 @@
             android:exported="false"
             android:foregroundServiceType="connectedDevice" />
 
+        <!-- Выбор ПК для плитки шторки: тап по пустой плитке или долгое нажатие -->
+        <activity
+            android:name=".ui.TilePickerActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE_PREFERENCES" />
+            </intent-filter>
+        </activity>
+
+        <!-- Плитки быстрых настроек: 4 слота, каждому назначается свой ПК -->
+        <service
+            android:name=".service.PcTile1"
+            android:exported="true"
+            android:label="RFID ПК 1"
+            android:icon="@drawable/ic_qs_lock"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+        <service
+            android:name=".service.PcTile2"
+            android:exported="true"
+            android:label="RFID ПК 2"
+            android:icon="@drawable/ic_qs_lock"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+        <service
+            android:name=".service.PcTile3"
+            android:exported="true"
+            android:label="RFID ПК 3"
+            android:icon="@drawable/ic_qs_lock"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+        <service
+            android:name=".service.PcTile4"
+            android:exported="true"
+            android:label="RFID ПК 4"
+            android:icon="@drawable/ic_qs_lock"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
     </application>
 </manifest>
