@@ -24,6 +24,7 @@ class PcProfileRepository(private val dao: PcProfileDao) {
                     port = profile.port,
                     token = profile.token,
                     os = profile.os,
+                    ztNetworkId = profile.ztNetworkId,
                     updatedAt = System.currentTimeMillis(),
                 )
             )

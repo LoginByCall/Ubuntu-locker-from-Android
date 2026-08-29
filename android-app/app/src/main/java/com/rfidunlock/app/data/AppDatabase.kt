@@ -19,7 +19,7 @@ class Converters {
     fun fromTagMode(mode: TagMode): String = mode.name
 }
 
-@Database(entities = [Tag::class, PcProfile::class], version = 4, exportSchema = false)
+@Database(entities = [Tag::class, PcProfile::class], version = 5, exportSchema = false)
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun tagDao(): TagDao
@@ -68,13 +68,21 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** Миграция v4→v5: id сети ZeroTier для встроенного узла (libzt). */
+        private val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE pc_profiles ADD COLUMN ztNetworkId TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
         fun get(context: Context): AppDatabase =
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
                     "rfid-unlock.db"
-                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4).build().also { INSTANCE = it }
+                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                    .build().also { INSTANCE = it }
             }
     }
 }

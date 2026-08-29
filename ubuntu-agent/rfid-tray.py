@@ -53,6 +53,9 @@ except Exception as exc:  # pragma: no cover - окружение без тре�
 CONF_DIR = Path(os.environ.get("XDG_CONFIG_HOME", str(Path.home() / ".config"))) / "rfid-agent"
 TOKEN_FILE = CONF_DIR / "token"
 PROFILE_ID_FILE = CONF_DIR / "profile-id"
+# id сети ZeroTier (16 hex) — для встроенного узла в Android-приложении (libzt).
+# Файл создаётся вручную/установщиком: zerotier-cli listnetworks (от root).
+ZT_NETWORK_FILE = CONF_DIR / "zt-network"
 PORT = int(os.environ.get("RFID_PORT", "5390"))
 QR_VERSION = 1
 
@@ -142,20 +145,28 @@ def os_family() -> str:
     return system or "unknown"
 
 
+def zt_network_id() -> str:
+    """id сети ZeroTier из конфига агента (или пустая строка)."""
+    try:
+        return ZT_NETWORK_FILE.read_text(encoding="utf-8").strip()
+    except OSError:
+        return ""
+
+
 def build_payload() -> str:
     """Сформировать JSON-профиль для QR-кода."""
-    return json.dumps(
-        {
-            "v": QR_VERSION,
-            "id": profile_id(),
-            "name": socket.gethostname(),
-            "host": zt_ip() or ygg_ip() or lan_ip(),
-            "port": PORT,
-            "token": read_token(),
-            "os": os_family(),
-        },
-        ensure_ascii=False,
-    )
+    payload = {
+        "v": QR_VERSION,
+        "id": profile_id(),
+        "name": socket.gethostname(),
+        "host": zt_ip() or ygg_ip() or lan_ip(),
+        "port": PORT,
+        "token": read_token(),
+        "os": os_family(),
+    }
+    if zt_network_id():
+        payload["ztnet"] = zt_network_id()
+    return json.dumps(payload, ensure_ascii=False)
 
 
 def make_qr_image() -> Image.Image:

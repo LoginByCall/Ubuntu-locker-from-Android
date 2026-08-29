@@ -14,6 +14,9 @@ import androidx.room.PrimaryKey
  * @param port TCP-порт агента.
  * @param token предварительный токен для аутентификации команд.
  * @param os семейство ОС ПК (ubuntu/linux/windows/macos) для иконки на плитке.
+ * @param ztNetworkId id сети ZeroTier (16 hex-символов) для встроенного узла
+ *   (libzt) — используется, когда системного ZT-туннеля нет; пусто = только
+ *   прямое подключение.
  * @param createdAt время добавления (epoch millis).
  * @param updatedAt время последнего изменения (epoch millis).
  */
@@ -25,11 +28,13 @@ data class PcProfile(
     val port: Int = 5390,
     val token: String = "",
     val os: String = "",
+    val ztNetworkId: String = "",
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis(),
 ) {
     /** Транспортные настройки для [com.rfidunlock.app.net.TcpCommandClient]. */
-    fun toServerSettings(): ServerSettings = ServerSettings(host = host, port = port, token = token)
+    fun toServerSettings(): ServerSettings =
+        ServerSettings(host = host, port = port, token = token, ztNetworkId = ztNetworkId)
 
     /** Адрес для отображения: IPv6-литерал (Yggdrasil) — в квадратных скобках. */
     fun hostPort(): String = if (":" in host) "[$host]:$port" else "$host:$port"

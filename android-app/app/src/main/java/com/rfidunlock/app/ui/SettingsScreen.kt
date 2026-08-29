@@ -160,6 +160,18 @@ fun SettingsScreen(
                     color = MaterialTheme.colorScheme.primary,
                 )
             }
+
+            Text("Встроенный ZeroTier", style = MaterialTheme.typography.titleMedium)
+            Text(
+                com.rfidunlock.app.net.ZtEmbedded.nodeId()
+                    ?.let {
+                        "Node ID: $it\nАвторизуйте этот узел на контроллере сети " +
+                            "ZeroTier — тогда связь с ПК работает без VPN-приложения."
+                    }
+                    ?: "Узел ещё не создан — появится после первой команды, " +
+                        "когда системный ZT-туннель недоступен.",
+                style = MaterialTheme.typography.bodySmall,
+            )
         }
     }
 }

@@ -2,13 +2,16 @@ package com.rfidunlock.app.net
 
 import android.util.Log
 import com.rfidunlock.app.data.ServerSettings
+import com.zerotier.sockets.ZeroTierSocket
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.BufferedReader
+import java.io.InputStream
 import java.io.InputStreamReader
 import java.io.OutputStream
 import java.net.InetSocketAddress
+import java.net.NetworkInterface
 import java.net.Socket
 import java.util.UUID
 import javax.crypto.Mac
@@ -59,24 +62,74 @@ class TcpCommandClient {
             }.toString()
 
             runCatching {
-                Socket().use { socket ->
-                    socket.connect(InetSocketAddress(settings.host, settings.port), connectTimeoutMs)
-                    socket.soTimeout = readTimeoutMs
-                    writeLine(socket.getOutputStream(), request)
-                    val reader = BufferedReader(InputStreamReader(socket.getInputStream()))
-                    val responseLine = reader.readLine()
-                        ?: return@use CommandResult(false, "нет ответа")
-                    val json = JSONObject(responseLine)
-                    val ok = json.optString("status") == "ok"
-                    val detail = json.optString("detail")
-                    Log.i(tag, "$cmd reqId=$reqId -> ${json.optString("status")} ($detail)")
-                    CommandResult(ok, detail)
-                }
+                if (useEmbeddedZt(settings)) sendViaEmbeddedZt(settings, cmd, reqId, request)
+                else sendDirect(settings, cmd, reqId, request)
             }.getOrElse { e ->
                 Log.w(tag, "Ошибка отправки $cmd: ${e.message}")
                 CommandResult(false, e.message ?: "ошибка сети")
             }
         }
+
+    /**
+     * Встроенный узел ZeroTier нужен, когда у профиля задана сеть, а системного
+     * маршрута до ПК нет (официальный ZT-туннель выключен/вытеснен другим VPN).
+     */
+    private fun useEmbeddedZt(settings: ServerSettings): Boolean =
+        settings.ztNetworkId.isNotBlank() && !hasLocalRouteTo(settings.host)
+
+    /** Есть ли у устройства интерфейс в той же IPv4-подсети /24, что и ПК. */
+    private fun hasLocalRouteTo(host: String): Boolean {
+        val prefix = host.substringBeforeLast('.', "")
+        if (prefix.isEmpty() || ":" in host) return true // IPv6 — пробуем напрямую
+        return runCatching {
+            NetworkInterface.getNetworkInterfaces().asSequence()
+                .filter { it.isUp }
+                .flatMap { it.inetAddresses.asSequence() }
+                .any { it.hostAddress?.startsWith("$prefix.") == true }
+        }.getOrDefault(false)
+    }
+
+    private fun sendDirect(
+        settings: ServerSettings, cmd: String, reqId: String, request: String,
+    ): CommandResult =
+        Socket().use { socket ->
+            socket.connect(InetSocketAddress(settings.host, settings.port), connectTimeoutMs)
+            socket.soTimeout = readTimeoutMs
+            exchange(socket.getInputStream(), socket.getOutputStream(), cmd, reqId, request)
+        }
+
+    private suspend fun sendViaEmbeddedZt(
+        settings: ServerSettings, cmd: String, reqId: String, request: String,
+    ): CommandResult {
+        ZtEmbedded.acquire(settings.ztNetworkId)?.let { error ->
+            Log.w(tag, "Встроенный ZeroTier: $error")
+            return CommandResult(false, error)
+        }
+        try {
+            val socket = ZeroTierSocket(settings.host, settings.port)
+            try {
+                socket.setSoTimeout(readTimeoutMs)
+                return exchange(socket.inputStream, socket.outputStream, cmd, reqId, request)
+            } finally {
+                socket.close()
+            }
+        } finally {
+            ZtEmbedded.release() // узел погаснет после простоя — экономия батареи
+        }
+    }
+
+    private fun exchange(
+        input: InputStream, output: OutputStream, cmd: String, reqId: String, request: String,
+    ): CommandResult {
+        writeLine(output, request)
+        val reader = BufferedReader(InputStreamReader(input))
+        val responseLine = reader.readLine() ?: return CommandResult(false, "нет ответа")
+        val json = JSONObject(responseLine)
+        val ok = json.optString("status") == "ok"
+        val detail = json.optString("detail")
+        Log.i(tag, "$cmd reqId=$reqId -> ${json.optString("status")} ($detail)")
+        return CommandResult(ok, detail)
+    }
 
     private fun sign(message: String, token: String): String {
         if (token.isEmpty()) return "" // сервер без токена подпись не проверяет

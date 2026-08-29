@@ -50,6 +50,10 @@ android {
 }
 
 dependencies {
+    // Встроенный ZeroTier (libzt, userspace, arm64) — собран из
+    // github.com/zerotier/libzt (pkg/android), см. Паспорт-libzt.md
+    implementation(files("libs/libzt-release.aar"))
+
     val composeBom = platform("androidx.compose:compose-bom:2024.09.00")
     implementation(composeBom)
 

@@ -26,6 +26,7 @@ class RfidApp : Application() {
     override fun onCreate() {
         super.onCreate()
         val db = AppDatabase.get(this)
+        com.rfidunlock.app.net.ZtEmbedded.init(this)
         tagRepository = TagRepository(db.tagDao())
         settingsRepository = SettingsRepository(this)
         pcProfileRepository = PcProfileRepository(db.pcProfileDao())

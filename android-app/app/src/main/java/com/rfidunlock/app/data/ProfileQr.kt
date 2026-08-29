@@ -44,6 +44,7 @@ object ProfileQr {
         val port = json.optInt("port", 5390)
         val token = json.optString("token").trim()
         val os = json.optString("os").trim()
+        val ztNetworkId = json.optString("ztnet").trim()
 
         if (id.isEmpty() || host.isEmpty() || token.isEmpty()) {
             return Result.Error("В QR-коде не хватает данных профиля")
@@ -57,6 +58,7 @@ object ProfileQr {
                 port = port,
                 token = token,
                 os = os,
+                ztNetworkId = ztNetworkId,
             )
         )
     }

@@ -17,6 +17,7 @@ data class ServerSettings(
     val host: String = "",
     val port: Int = 5390,
     val token: String = "",
+    val ztNetworkId: String = "",
 ) {
     val isConfigured: Boolean get() = host.isNotBlank()
 }
