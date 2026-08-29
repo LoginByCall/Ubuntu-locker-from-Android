@@ -19,7 +19,7 @@ class Converters {
     fun fromTagMode(mode: TagMode): String = mode.name
 }
 
-@Database(entities = [Tag::class, PcProfile::class], version = 5, exportSchema = false)
+@Database(entities = [Tag::class, PcProfile::class], version = 7, exportSchema = false)
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun tagDao(): TagDao
@@ -75,14 +75,30 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** Миграция v5→v6: id moon-мира ZeroTier (собственный корень сети). */
+        private val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE pc_profiles ADD COLUMN ztMoonId TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
+        /** Миграция v6→v7: кастомный planet-блоб (base64) для встроенного узла. */
+        private val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE pc_profiles ADD COLUMN ztRoots TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
         fun get(context: Context): AppDatabase =
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
                     "rfid-unlock.db"
-                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
-                    .build().also { INSTANCE = it }
+                ).addMigrations(
+                    MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6,
+                    MIGRATION_6_7,
+                ).build().also { INSTANCE = it }
             }
     }
 }

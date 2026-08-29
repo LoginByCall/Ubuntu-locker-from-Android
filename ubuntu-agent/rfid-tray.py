@@ -24,6 +24,7 @@ QR кодирует JSON-профиль:
 
 from __future__ import annotations
 
+import base64
 import ipaddress
 import json
 import os
@@ -56,6 +57,12 @@ PROFILE_ID_FILE = CONF_DIR / "profile-id"
 # id сети ZeroTier (16 hex) — для встроенного узла в Android-приложении (libzt).
 # Файл создаётся вручную/установщиком: zerotier-cli listnetworks (от root).
 ZT_NETWORK_FILE = CONF_DIR / "zt-network"
+# id moon-мира ZeroTier (10-16 hex) — собственный корень для встроенного узла
+# (без него узлы за блокировками publичных корней не находят друг друга).
+ZT_MOON_FILE = CONF_DIR / "zt-moon"
+# Кастомный planet-блоб для встроенного узла: World с корнем = свой moon-сервер
+# (moon-файл /var/lib/zerotier-one/moons.d/*.moon с байтом типа 127→1).
+ZT_ROOTS_FILE = CONF_DIR / "zt-roots"
 PORT = int(os.environ.get("RFID_PORT", "5390"))
 QR_VERSION = 1
 
@@ -166,6 +173,18 @@ def build_payload() -> str:
     }
     if zt_network_id():
         payload["ztnet"] = zt_network_id()
+    try:
+        moon = ZT_MOON_FILE.read_text(encoding="utf-8").strip()
+        if moon:
+            payload["ztmoon"] = moon
+    except OSError:
+        pass
+    try:
+        roots = ZT_ROOTS_FILE.read_bytes()
+        if roots:
+            payload["ztroots"] = base64.b64encode(roots).decode("ascii")
+    except OSError:
+        pass
     return json.dumps(payload, ensure_ascii=False)
 
 

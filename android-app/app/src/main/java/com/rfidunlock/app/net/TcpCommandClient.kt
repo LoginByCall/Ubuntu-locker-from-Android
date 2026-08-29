@@ -62,7 +62,9 @@ class TcpCommandClient {
             }.toString()
 
             runCatching {
-                if (useEmbeddedZt(settings)) sendViaEmbeddedZt(settings, cmd, reqId, request)
+                val embedded = useEmbeddedZt(settings)
+                Log.i(tag, "$cmd -> ${settings.host} (транспорт: ${if (embedded) "libzt" else "direct"})")
+                if (embedded) sendViaEmbeddedZt(settings, cmd, reqId, request)
                 else sendDirect(settings, cmd, reqId, request)
             }.getOrElse { e ->
                 Log.w(tag, "Ошибка отправки $cmd: ${e.message}")
@@ -101,7 +103,8 @@ class TcpCommandClient {
     private suspend fun sendViaEmbeddedZt(
         settings: ServerSettings, cmd: String, reqId: String, request: String,
     ): CommandResult {
-        ZtEmbedded.acquire(settings.ztNetworkId)?.let { error ->
+        ZtEmbedded.acquire(settings.ztNetworkId, settings.ztMoonId, settings.ztRoots)
+            ?.let { error ->
             Log.w(tag, "Встроенный ZeroTier: $error")
             return CommandResult(false, error)
         }

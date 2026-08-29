@@ -45,6 +45,8 @@ object ProfileQr {
         val token = json.optString("token").trim()
         val os = json.optString("os").trim()
         val ztNetworkId = json.optString("ztnet").trim()
+        val ztMoonId = json.optString("ztmoon").trim()
+        val ztRoots = json.optString("ztroots").trim()
 
         if (id.isEmpty() || host.isEmpty() || token.isEmpty()) {
             return Result.Error("В QR-коде не хватает данных профиля")
@@ -59,6 +61,8 @@ object ProfileQr {
                 token = token,
                 os = os,
                 ztNetworkId = ztNetworkId,
+                ztMoonId = ztMoonId,
+                ztRoots = ztRoots,
             )
         )
     }

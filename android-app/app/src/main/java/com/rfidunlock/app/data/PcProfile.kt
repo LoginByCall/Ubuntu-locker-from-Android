@@ -29,12 +29,16 @@ data class PcProfile(
     val token: String = "",
     val os: String = "",
     val ztNetworkId: String = "",
+    val ztMoonId: String = "",
+    val ztRoots: String = "",
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis(),
 ) {
     /** Транспортные настройки для [com.rfidunlock.app.net.TcpCommandClient]. */
-    fun toServerSettings(): ServerSettings =
-        ServerSettings(host = host, port = port, token = token, ztNetworkId = ztNetworkId)
+    fun toServerSettings(): ServerSettings = ServerSettings(
+        host = host, port = port, token = token,
+        ztNetworkId = ztNetworkId, ztMoonId = ztMoonId, ztRoots = ztRoots,
+    )
 
     /** Адрес для отображения: IPv6-литерал (Yggdrasil) — в квадратных скобках. */
     fun hostPort(): String = if (":" in host) "[$host]:$port" else "$host:$port"
