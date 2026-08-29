@@ -6,16 +6,23 @@
 `loginctl` и отвечает подтверждением по тому же соединению.
 
 Протокол: построчный JSON (одна команда — одна строка, разделитель '\n').
-  Запрос:  {"cmd": "lock"|"unlock"|"status", "reqId": "<id>", "token": "<secret>"}
+  Запрос:  {"cmd": "lock"|"unlock"|"status", "reqId": "<nonce>", "ts": <unix-сек>,
+            "sig": "<hex HMAC-SHA256(token, "cmd|reqId|ts")>"}
   Ответ:   {"reqId": "<id>", "status": "ok"|"error", "detail": "<text>"}
 
-Аутентификация (MVP, этап 1): общий предварительный токен (pre-shared token).
-Команды без верного токена отклоняются. Прикладное шифрование/HMAC — этап 2.
+Аутентификация (этап 2, ТЗ 7.2): HMAC-подпись команды общим токеном.
+Токен по сети не передаётся. Защита от повтора: ts в окне ±AUTH_WINDOW_S
+и кэш использованных reqId (nonce). При пустом RFID_TOKEN проверка отключена
+(только для отладки).
+
+БЕЗОПАСНОСТЬ: криптографическая часть требует ревью человеком (A13).
 """
 
 from __future__ import annotations
 
 import getpass
+import hashlib
+import hmac
 import json
 import logging
 import os
@@ -23,12 +30,16 @@ import socket
 import socketserver
 import subprocess
 import sys
+import threading
+import time
 from datetime import datetime
 from pathlib import Path
 
 HOST = os.environ.get("RFID_BIND_HOST", "::")  # "::" = dual-stack: LAN IPv4 + Yggdrasil IPv6
 PORT = int(os.environ.get("RFID_PORT", "5390"))
 TOKEN = os.environ.get("RFID_TOKEN", "")  # пустой = проверка отключена (не рекомендуется)
+
+AUTH_WINDOW_S = 300  # допустимый разбег часов телефона и ПК
 
 STATE_DIR = Path(os.environ.get("XDG_STATE_HOME", str(Path.home() / ".local/state"))) / "rfid-agent"
 LOG_FILE = STATE_DIR / "rfid-server.log"
@@ -84,14 +95,49 @@ def run_loginctl(action: str, sid: str) -> tuple[bool, str]:
         return False, (exc.stderr or str(exc)).strip()
 
 
+_seen_lock = threading.Lock()
+_seen_req_ids: dict[str, float] = {}  # nonce (reqId) -> время приёма, анти-replay
+
+
+def verify_signature(payload: dict) -> str:
+    """Проверить HMAC-подпись команды. Возвращает "" (ок) или причину отказа."""
+    if not TOKEN:
+        return ""
+    req_id = str(payload.get("reqId", ""))
+    cmd = str(payload.get("cmd", "")).lower()
+    sig = str(payload.get("sig", ""))
+    try:
+        ts = int(payload.get("ts", 0))
+    except (TypeError, ValueError):
+        return "bad-ts"
+    now = time.time()
+    if not req_id or not sig:
+        return "missing-auth"
+    if abs(now - ts) > AUTH_WINDOW_S:
+        return "stale-ts"
+    expected = hmac.new(
+        TOKEN.encode("utf-8"), f"{cmd}|{req_id}|{ts}".encode("utf-8"), hashlib.sha256
+    ).hexdigest()
+    if not hmac.compare_digest(expected, sig.lower()):
+        return "bad-signature"
+    with _seen_lock:
+        for stale in [k for k, v in _seen_req_ids.items() if now - v > AUTH_WINDOW_S]:
+            del _seen_req_ids[stale]
+        if req_id in _seen_req_ids:
+            return "replay"
+        _seen_req_ids[req_id] = now
+    return ""
+
+
 def handle_command(payload: dict) -> dict:
     """Обработать одну команду и сформировать ответ."""
     req_id = str(payload.get("reqId", ""))
     cmd = str(payload.get("cmd", "")).lower()
-    token = str(payload.get("token", ""))
 
-    if TOKEN and token != TOKEN:
-        log.warning("Отклонена команда с неверным токеном (cmd=%s reqId=%s)", cmd, req_id)
+    reason = verify_signature(payload)
+    if reason:
+        # Причина — только в лог, клиенту единый ответ (не подсказывать атакующему).
+        log.warning("Отклонена команда: %s (cmd=%s reqId=%s)", reason, cmd, req_id)
         return {"reqId": req_id, "status": "error", "detail": "unauthorized"}
 
     sid = current_session_id()
