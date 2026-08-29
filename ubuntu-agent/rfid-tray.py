@@ -79,6 +79,22 @@ def profile_id() -> str:
     return new_id
 
 
+def zt_ip() -> str:
+    """Адрес в сети ZeroTier (интерфейс zt*): достижим из любой сети, где есть ZT."""
+    try:
+        out = subprocess.run(
+            ["ip", "-j", "-4", "addr"], capture_output=True, text=True, check=True
+        ).stdout
+        for iface in json.loads(out):
+            if iface.get("ifname", "").startswith("zt"):
+                for addr in iface.get("addr_info", []):
+                    if addr.get("local"):
+                        return addr["local"]
+    except (OSError, subprocess.CalledProcessError, json.JSONDecodeError):
+        pass
+    return ""
+
+
 def ygg_ip() -> str:
     """Yggdrasil-адрес узла (200::/7): стабилен, не зависит от физической сети."""
     try:
@@ -133,7 +149,7 @@ def build_payload() -> str:
             "v": QR_VERSION,
             "id": profile_id(),
             "name": socket.gethostname(),
-            "host": ygg_ip() or lan_ip(),
+            "host": zt_ip() or ygg_ip() or lan_ip(),
             "port": PORT,
             "token": read_token(),
             "os": os_family(),
