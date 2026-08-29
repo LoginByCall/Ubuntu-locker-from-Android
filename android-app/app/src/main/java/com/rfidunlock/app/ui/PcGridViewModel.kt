@@ -37,6 +37,10 @@ class PcGridViewModel(
     private val _refreshing = MutableStateFlow(false)
     val refreshing: StateFlow<Boolean> = _refreshing.asStateFlow()
 
+    // Профили с командой в полёте: повторный тап по плитке игнорируется,
+    // иначе дабл-тап успевает отправить две команды (вплоть до противоположных).
+    private val togglesInFlight = mutableSetOf<String>()
+
     /** Запросить статус всех профилей. */
     fun refresh() {
         viewModelScope.launch {
@@ -49,23 +53,28 @@ class PcGridViewModel(
 
     /** Переключить состояние ПК: заблокирован → разблокировать, иначе заблокировать. */
     fun toggle(profile: PcProfile) {
+        if (!togglesInFlight.add(profile.id)) return
         viewModelScope.launch {
-            // Всегда запрашиваем актуальный статус перед действием — кэш может устареть.
-            val status = queryStatus(profile)
-            setStatus(profile.id, status)
-            val result: CommandResult = when (status) {
-                PcStatus.LOCKED -> client.unlock(profile.toServerSettings())
-                PcStatus.UNLOCKED -> client.lock(profile.toServerSettings())
-                else -> return@launch // OFFLINE/UNKNOWN — переключать нечего
-            }
-            if (result.ok) {
-                setStatus(profile.id, queryStatus(profile))
-                // Разовое обновление статуса через 2 c: ПК мог завершить переход
-                // (особенно разблокировку) с задержкой относительно ответа на команду.
-                delay(2000)
-                setStatus(profile.id, queryStatus(profile))
-            } else {
-                setStatus(profile.id, PcStatus.OFFLINE)
+            try {
+                // Всегда запрашиваем актуальный статус перед действием — кэш может устареть.
+                val status = queryStatus(profile)
+                setStatus(profile.id, status)
+                val result: CommandResult = when (status) {
+                    PcStatus.LOCKED -> client.unlock(profile.toServerSettings())
+                    PcStatus.UNLOCKED -> client.lock(profile.toServerSettings())
+                    else -> return@launch // OFFLINE/UNKNOWN — переключать нечего
+                }
+                if (result.ok) {
+                    setStatus(profile.id, queryStatus(profile))
+                    // Разовое обновление статуса через 2 c: ПК мог завершить переход
+                    // (особенно разблокировку) с задержкой относительно ответа на команду.
+                    delay(2000)
+                    setStatus(profile.id, queryStatus(profile))
+                } else {
+                    setStatus(profile.id, PcStatus.OFFLINE)
+                }
+            } finally {
+                togglesInFlight.remove(profile.id)
             }
         }
     }

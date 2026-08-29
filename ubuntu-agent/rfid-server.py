@@ -15,6 +15,7 @@
 
 from __future__ import annotations
 
+import getpass
 import json
 import logging
 import os
@@ -42,8 +43,14 @@ log = logging.getLogger("rfid-server")
 
 
 def current_session_id() -> str:
-    """Определить id графической сессии текущего пользователя."""
-    user = os.environ.get("USER") or os.environ.get("LOGNAME") or ""
+    """Определить id графической сессии текущего пользователя.
+
+    Колонки list-sessions зависят от версии systemd, а первой строкой может
+    идти сессия Class=manager (systemd user manager), которая не умеет
+    lock screen. Поэтому свойства каждой сессии запрашиваются явно и
+    выбирается сессия Class=user нашего пользователя.
+    """
+    user = getpass.getuser()
     try:
         out = subprocess.run(
             ["loginctl", "list-sessions", "--no-legend"],
@@ -53,8 +60,18 @@ def current_session_id() -> str:
         return ""
     for line in out.splitlines():
         parts = line.split()
-        if len(parts) >= 3 and parts[2] == user:
-            return parts[0]
+        if not parts:
+            continue
+        sid = parts[0]
+        try:
+            props = subprocess.run(
+                ["loginctl", "show-session", sid, "-p", "Name", "-p", "Class", "--value"],
+                capture_output=True, text=True, check=True,
+            ).stdout.split()
+        except subprocess.CalledProcessError:
+            continue
+        if len(props) >= 2 and props[0] == user and props[1] == "user":
+            return sid
     return ""
 
 
