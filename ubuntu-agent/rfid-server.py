@@ -25,7 +25,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-HOST = os.environ.get("RFID_BIND_HOST", "0.0.0.0")
+HOST = os.environ.get("RFID_BIND_HOST", "::")  # "::" = dual-stack: LAN IPv4 + Yggdrasil IPv6
 PORT = int(os.environ.get("RFID_PORT", "5390"))
 TOKEN = os.environ.get("RFID_TOKEN", "")  # пустой = проверка отключена (не рекомендуется)
 
@@ -130,8 +130,15 @@ class Handler(socketserver.StreamRequestHandler):
 
 
 class Server(socketserver.ThreadingTCPServer):
+    address_family = socket.AF_INET6 if ":" in HOST else socket.AF_INET
     allow_reuse_address = True
     daemon_threads = True
+
+    def server_bind(self) -> None:
+        if self.address_family == socket.AF_INET6:
+            # Принимать и IPv4 (LAN), и IPv6 (Yggdrasil) на одном сокете.
+            self.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+        super().server_bind()
 
 
 def main() -> int:

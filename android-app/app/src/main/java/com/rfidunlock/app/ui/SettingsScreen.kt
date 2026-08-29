@@ -95,7 +95,7 @@ fun SettingsScreen(
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(profile.name, style = MaterialTheme.typography.titleSmall)
                                 Text(
-                                    "${profile.host}:${profile.port}",
+                                    profile.hostPort(),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )

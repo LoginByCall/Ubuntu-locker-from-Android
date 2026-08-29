@@ -24,6 +24,7 @@ QR кодирует JSON-профиль:
 
 from __future__ import annotations
 
+import ipaddress
 import json
 import os
 import platform
@@ -78,6 +79,25 @@ def profile_id() -> str:
     return new_id
 
 
+def ygg_ip() -> str:
+    """Yggdrasil-адрес узла (200::/7): стабилен, не зависит от физической сети."""
+    try:
+        out = subprocess.run(
+            ["ip", "-j", "-6", "addr"], capture_output=True, text=True, check=True
+        ).stdout
+        for iface in json.loads(out):
+            for addr in iface.get("addr_info", []):
+                ip = addr.get("local", "")
+                try:
+                    if ipaddress.ip_address(ip) in ipaddress.ip_network("200::/7"):
+                        return ip
+                except ValueError:
+                    continue
+    except (OSError, subprocess.CalledProcessError, json.JSONDecodeError):
+        pass
+    return ""
+
+
 def lan_ip() -> str:
     """Определить IP в локальной сети (адрес исходящего интерфейса)."""
     try:
@@ -113,7 +133,7 @@ def build_payload() -> str:
             "v": QR_VERSION,
             "id": profile_id(),
             "name": socket.gethostname(),
-            "host": lan_ip(),
+            "host": ygg_ip() or lan_ip(),
             "port": PORT,
             "token": read_token(),
             "os": os_family(),

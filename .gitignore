@@ -4,7 +4,8 @@ android-app/app/build/
 android-app/**/build/
 **/build/
 
-# Gradle
+# Gradle / Kotlin
+android-app/.kotlin/
 android-app/.gradle/
 .gradle/
 android-app/local.properties

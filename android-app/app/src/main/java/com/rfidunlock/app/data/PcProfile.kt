@@ -30,4 +30,7 @@ data class PcProfile(
 ) {
     /** Транспортные настройки для [com.rfidunlock.app.net.TcpCommandClient]. */
     fun toServerSettings(): ServerSettings = ServerSettings(host = host, port = port, token = token)
+
+    /** Адрес для отображения: IPv6-литерал (Yggdrasil) — в квадратных скобках. */
+    fun hostPort(): String = if (":" in host) "[$host]:$port" else "$host:$port"
 }

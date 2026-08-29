@@ -149,7 +149,7 @@ fun PcGridScreen(
             title = { Text(profile.name) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("Адрес: ${profile.host}:${profile.port}")
+                    Text("Адрес: ${profile.hostPort()}")
                     Text("ОС: ${profile.os.ifEmpty { "—" }}")
                     Text("ID: ${profile.id}", style = MaterialTheme.typography.bodySmall)
                 }
