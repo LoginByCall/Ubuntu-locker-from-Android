@@ -30,10 +30,10 @@ object ZtEmbedded {
     private const val ONLINE_TIMEOUT_MS = 15_000L
     private const val NETWORK_TIMEOUT_MS = 15_000L
 
-    // ponytail: 60 с простоя до остановки узла; если холодный старт в реальной
-    // сети окажется дорогим — поднять окно или добавить предпрогрев при
-    // открытии приложения.
-    private const val IDLE_STOP_MS = 60_000L
+    // ponytail: 5 мин простоя до остановки узла. Холодный старт на LTE стоит
+    // ~30-40 с (сходимость NAT-обхода через moon), поэтому в рамках сессии
+    // пользования узел держим тёплым; батарею бережёт остановка после неё.
+    private const val IDLE_STOP_MS = 300_000L
 
     private lateinit var storageDir: File
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -78,8 +78,10 @@ object ZtEmbedded {
                 installRoots(rootsB64)
                 Log.i(TAG, "init: storage=$storageDir")
                 it.initFromStorage(storageDir.absolutePath)
-                // Кэши ускоряют повторный холодный старт (меньше радио = батарея)
-                it.initAllowPeerCache(true)
+                // Кэши ускоряют повторный холодный старт (меньше радио = батарея).
+                // Кэш ПИРОВ выключен: после смены сети (Wi-Fi→LTE) протухшие
+                // пути из него задерживают пересбор маршрута на десятки секунд.
+                it.initAllowPeerCache(false)
                 it.initAllowNetworkCache(true)
                 it.initAllowRootsCache(true)
                 it.initAllowIdCache(true)

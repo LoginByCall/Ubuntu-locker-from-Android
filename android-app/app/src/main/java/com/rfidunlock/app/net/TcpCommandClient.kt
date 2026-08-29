@@ -109,13 +109,25 @@ class TcpCommandClient {
             return CommandResult(false, error)
         }
         try {
-            val socket = ZeroTierSocket(settings.host, settings.port)
-            try {
-                socket.setSoTimeout(readTimeoutMs)
-                return exchange(socket.inputStream, socket.outputStream, cmd, reqId, request)
-            } finally {
-                socket.close()
+            // Первая попытка после смены сети может упереться в ещё не
+            // пересобранный маршрут: сам connect запускает rendezvous,
+            // поэтому одна повторная попытка обычно проходит.
+            var lastError: Exception? = null
+            repeat(2) { attempt ->
+                try {
+                    val socket = ZeroTierSocket(settings.host, settings.port)
+                    try {
+                        socket.setSoTimeout(readTimeoutMs)
+                        return exchange(socket.inputStream, socket.outputStream, cmd, reqId, request)
+                    } finally {
+                        socket.close()
+                    }
+                } catch (e: java.io.IOException) {
+                    lastError = e
+                    Log.w(tag, "connect через libzt (попытка ${attempt + 1}): ${e.message}")
+                }
             }
+            throw lastError!!
         } finally {
             ZtEmbedded.release() // узел погаснет после простоя — экономия батареи
         }
