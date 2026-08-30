@@ -36,6 +36,27 @@ if [[ ! -s "$TOKEN_FILE" ]]; then
 fi
 TOKEN="$(cat "$TOKEN_FILE")"
 
+# 2b. Параметры ZeroTier для QR (встроенный узел libzt в приложении).
+# Без zt-network QR отдаёт ZT-адрес ПК, но приложение идёт «напрямую» → «недоступен».
+# Берём из системного ZeroTier, если файлы ещё не созданы вручную (см. README).
+for ZT_HOME in /var/lib/zerotier-one /var/snap/zerotier/common; do
+    [[ -d "$ZT_HOME/networks.d" ]] || continue
+    if [[ ! -s "$CONF_DIR/zt-network" ]]; then
+        # ponytail: первая сеть; несколько сетей — задать zt-network вручную
+        NW="$(basename -a "$ZT_HOME"/networks.d/*.conf 2>/dev/null | cut -d. -f1 | head -1)"
+        [[ -n "$NW" ]] && printf '%s' "$NW" >"$CONF_DIR/zt-network" && echo "zt-network: $NW"
+    fi
+    if [[ ! -s "$CONF_DIR/zt-moon" ]]; then
+        MOON="$(ls "$ZT_HOME"/moons.d/*.moon 2>/dev/null | head -1)"
+        if [[ -n "$MOON" ]]; then
+            basename "$MOON" .moon | sed 's/^0*//' | tr -d '\n' >"$CONF_DIR/zt-moon"
+            { printf '\x01'; tail -c +2 "$MOON"; } >"$CONF_DIR/zt-roots"
+            echo "zt-moon/zt-roots: $(cat "$CONF_DIR/zt-moon")"
+        fi
+    fi
+    break
+done
+
 # 3. systemd user unit
 UNIT_FILE="$UNIT_DIR/rfid-server.service"
 cat >"$UNIT_FILE" <<EOF

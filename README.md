@@ -62,6 +62,7 @@ flowchart LR
 (история выбора: Yggdrasil → ZeroTier) и [Паспорт-libzt.md](Паспорт-libzt.md)
 (встроенный узел: сборка AAR, грабли, замеры).
 Полные требования — [ТЗ-RFID-Unlock.md](ТЗ-RFID-Unlock.md).
+Для пользователя: [Инструкция-пользователя.md](Инструкция-пользователя.md).
 
 ---
 
@@ -143,6 +144,8 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 > `sdk.dir=/path/to/Android/Sdk`.
 > AAR libzt пересобирается из [zerotier/libzt](https://github.com/zerotier/libzt)
 > (`pkg/android`, NDK 25.1, JDK 17) — готовый arm64-вариант лежит в `app/libs/`.
+> После пересборки AAR обязательно прогнать `tools/patch-libzt-detach.py app/libs/libzt-release.aar`
+> (убирает `DetachCurrentThread` из JNI-обёрток stop/free — иначе SIGABRT при остановке узла).
 
 ---
 

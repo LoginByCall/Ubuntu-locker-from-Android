@@ -78,3 +78,23 @@ per-app исключениях), телефон на LTE — команды пр
 - Пересканирование QR обновляет ztroots при смене moon-сервера.
 - Первая команда после простоя вне LAN — до ~40 с (NAT-обход); задокументировано
   в README.
+
+## 2026-08-30 — Краш при idle-stop: DetachCurrentThread в JNI-обёртке
+
+- Симптом: через IDLE_STOP_MS после последней команды процесс падал с SIGABRT
+  «Thread[...DefaultDispatcher-worker...] attempting to detach while still
+  running code» (стек: ZtEmbedded.release → ZeroTierNode.stop →
+  Java_..._zts_1node_1stop → JavaVM::DetachCurrentThread). Раньше не замечали:
+  падение в фоне, следующая команда стартовала уже в новом процессе.
+- Причина: биндинг libzt после zts_node_stop()/zts_node_free() вызывает
+  jvm->DetachCurrentThread() на потоке вызова; для Java-потока ART это всегда
+  фатально. Обе обёртки (stop/free) одинаковы → из Java узел не остановить.
+- Решение: AAR пропатчен — в двух обёртках `blr x8` (слот vtable +40 =
+  DetachCurrentThread) заменён на `nop`; 8 байт, идемпотентный скрипт
+  `android-app/tools/patch-libzt-detach.py` (по символам через `nm -D`,
+  vaddr→offset по PT_LOAD). Пересборка libzt из исходников не потребовалась.
+  sha256 AAR: 1718f8d0… → 149fdfb4…
+- При обновлении libzt: собрать AAR, прогнать скрипт, убедиться по crash-буферу
+  logcat, что idle-stop проходит без SIGABRT, а следующая команда после стопа
+  поднимает узел в том же процессе.
+

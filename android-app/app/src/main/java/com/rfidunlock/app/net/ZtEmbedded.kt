@@ -127,6 +127,9 @@ object ZtEmbedded {
             mutex.withLock {
                 node?.let {
                     Log.i(TAG, "Останавливаю встроенный узел ZeroTier (простой)")
+                    // libzt: JNI-обёртка zts_node_stop делает DetachCurrentThread на
+                    // Java-потоке → SIGABRT. AAR пропатчен (tools/patch-libzt-detach.py);
+                    // при обновлении AAR прогнать скрипт заново.
                     it.stop()
                 }
                 node = null
