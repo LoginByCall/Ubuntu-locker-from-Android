@@ -47,6 +47,7 @@ import com.rfidunlock.app.ui.PcGridScreen
 import com.rfidunlock.app.ui.PcGridViewModel
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -80,7 +81,7 @@ class MainActivity : ComponentActivity() {
     private val powerDisconnectReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent?.action == Intent.ACTION_POWER_DISCONNECTED) {
-                handleTagRemoved()
+                handlePowerDisconnected()
             }
         }
     }
@@ -300,6 +301,25 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             }
+        }
+    }
+
+    /**
+     * Телефон снят с зарядки: LOCK для ПК последней метки в режиме «Присутствие»
+     * (как при снятии метки) плюс для всех ПК с флагом «LOCK при отключении зарядки».
+     * Один ПК — одна команда, даже если он попал в оба списка.
+     */
+    private fun handlePowerDisconnected() {
+        val tagTarget = lastEnabledTarget
+        lastEnabledUid = null
+        lastEnabledTarget = null
+        lifecycleScope.launch {
+            val flagged = pcProfileRepository.profiles.first()
+                .filter { it.lockOnPowerDisconnect }
+                .map { it.toServerSettings() }
+            (listOfNotNull(tagTarget) + flagged)
+                .distinctBy { it.host to it.port }
+                .forEach { service?.requestLock(it) }
         }
     }
 

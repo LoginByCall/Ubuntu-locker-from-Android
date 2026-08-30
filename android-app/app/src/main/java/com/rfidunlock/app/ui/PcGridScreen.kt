@@ -6,6 +6,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -34,6 +35,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -152,6 +154,16 @@ fun PcGridScreen(
                     Text("Адрес: ${profile.hostPort()}")
                     Text("ОС: ${profile.os.ifEmpty { "—" }}")
                     Text("ID: ${profile.id}", style = MaterialTheme.typography.bodySmall)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text("LOCK при отключении зарядки", modifier = Modifier.weight(1f))
+                        Switch(
+                            checked = profile.lockOnPowerDisconnect,
+                            onCheckedChange = { viewModel.setLockOnPowerDisconnect(profile, it) },
+                        )
+                    }
                 }
             },
         )

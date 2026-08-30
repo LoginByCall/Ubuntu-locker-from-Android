@@ -17,6 +17,8 @@ import androidx.room.PrimaryKey
  * @param ztNetworkId id сети ZeroTier (16 hex-символов) для встроенного узла
  *   (libzt) — используется, когда системного ZT-туннеля нет; пусто = только
  *   прямое подключение.
+ * @param lockOnPowerDisconnect слать LOCK этому ПК при отключении телефона от
+ *   зарядки (снятие с Type-C дока) — независимо от меток.
  * @param createdAt время добавления (epoch millis).
  * @param updatedAt время последнего изменения (epoch millis).
  */
@@ -31,6 +33,7 @@ data class PcProfile(
     val ztNetworkId: String = "",
     val ztMoonId: String = "",
     val ztRoots: String = "",
+    val lockOnPowerDisconnect: Boolean = false,
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis(),
 ) {

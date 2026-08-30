@@ -33,5 +33,9 @@ class PcProfileRepository(private val dao: PcProfileDao) {
         }
     }
 
+    /** Включить/выключить LOCK этого ПК при отключении телефона от зарядки. */
+    suspend fun setLockOnPowerDisconnect(profile: PcProfile, enabled: Boolean) =
+        dao.update(profile.copy(lockOnPowerDisconnect = enabled, updatedAt = System.currentTimeMillis()))
+
     suspend fun delete(profile: PcProfile) = dao.delete(profile)
 }

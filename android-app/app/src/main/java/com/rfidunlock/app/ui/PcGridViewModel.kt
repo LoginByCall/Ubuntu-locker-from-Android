@@ -95,6 +95,11 @@ class PcGridViewModel(
         _statuses.update { it + (id to status) }
     }
 
+    /** LOCK при отключении зарядки — настройка конкретного ПК. */
+    fun setLockOnPowerDisconnect(profile: PcProfile, enabled: Boolean) {
+        viewModelScope.launch { repository.setLockOnPowerDisconnect(profile, enabled) }
+    }
+
     /** Удалить профиль ПК. */
     fun delete(profile: PcProfile) {
         viewModelScope.launch {

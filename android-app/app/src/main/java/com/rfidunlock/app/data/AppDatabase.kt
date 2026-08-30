@@ -19,7 +19,7 @@ class Converters {
     fun fromTagMode(mode: TagMode): String = mode.name
 }
 
-@Database(entities = [Tag::class, PcProfile::class], version = 7, exportSchema = false)
+@Database(entities = [Tag::class, PcProfile::class], version = 8, exportSchema = false)
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun tagDao(): TagDao
@@ -89,6 +89,15 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** Миграция v7→v8: LOCK при отключении зарядки — отдельно для каждого ПК. */
+        private val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE pc_profiles ADD COLUMN lockOnPowerDisconnect INTEGER NOT NULL DEFAULT 0"
+                )
+            }
+        }
+
         fun get(context: Context): AppDatabase =
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -97,7 +106,7 @@ abstract class AppDatabase : RoomDatabase() {
                     "rfid-unlock.db"
                 ).addMigrations(
                     MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6,
-                    MIGRATION_6_7,
+                    MIGRATION_6_7, MIGRATION_7_8,
                 ).build().also { INSTANCE = it }
             }
     }
