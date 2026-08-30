@@ -39,3 +39,6 @@ ubuntu-agent/yggdrasil/*.local
 
 # OS
 .DS_Store
+
+# Реальные адреса/идентификаторы инфраструктуры — только локально
+*.local.md
