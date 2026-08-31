@@ -73,11 +73,17 @@ flowchart LR
 ```
 android-app/      Android-приложение (Kotlin/Compose)
   app/libs/         libzt-release.aar — встроенный ZeroTier (arm64)
+  …/net/            транспорт: LAN → прямой сокет → встроенный ZeroTier
+  …/confirm/        подтверждение действий на ПК (push + кнопки)
 ubuntu-agent/     ПК-агент: TCP-сервер, трей, установщики
-  rfid-server.py    TCP-сервер lock/unlock/status (HMAC-аутентификация)
+  rfid-server.py    TCP-сервер lock/unlock/status/ask/confirm/register
   rfid-tray.py      иконка в трее с QR-кодом профиля ПК
+  rfid-confirm.py   подтверждение действия на смартфоне (код возврата 0/1/2)
+  rfid-askpass      обёртка SUDO_ASKPASS поверх rfid-confirm.py
   install-server.sh установка сервера+трея как user-сервиса
   test_auth.py      регрессионный тест HMAC-аутентификации
+  test_confirm.py   регрессионный тест потока ask/confirm
+  test_lan_reply.py регрессионный тест: status отдаёт LAN-адрес ПК
   yggdrasil/        альтернативный слой (не используется; setup-скрипты)
 ТЗ-RFID-Unlock.md Техническое задание
 PROGRESS.md       Журнал прогресса по этапам
