@@ -9,6 +9,8 @@
   Запрос:  {"cmd": "lock"|"unlock"|"status", "reqId": "<nonce>", "ts": <unix-сек>,
             "sig": "<hex HMAC-SHA256(token, "cmd|reqId|ts")>"}
   Ответ:   {"reqId": "<id>", "status": "ok"|"error", "detail": "<text>"}
+  Ответ на status дополнительно несёт "lan": "<ip>" — текущий адрес ПК в
+  локальной сети; телефон обновляет им профиль (адрес меняется по DHCP).
 
 Аутентификация (этап 2, ТЗ 7.2): HMAC-подпись команды общим токеном.
 Токен по сети не передаётся. Защита от повтора: ts в окне ±AUTH_WINDOW_S
@@ -51,6 +53,16 @@ logging.basicConfig(
     handlers=[logging.FileHandler(LOG_FILE), logging.StreamHandler(sys.stderr)],
 )
 log = logging.getLogger("rfid-server")
+
+
+def lan_ip() -> str:
+    """IP ПК в локальной сети (адрес исходящего интерфейса)."""
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.connect(("1.1.1.1", 80))
+            return s.getsockname()[0]
+    except OSError:
+        return ""
 
 
 def current_session_id() -> str:
@@ -154,7 +166,8 @@ def handle_command(payload: dict) -> dict:
                 ["loginctl", "show-session", sid, "-p", "LockedHint", "--value"],
                 capture_output=True, text=True, check=True,
             ).stdout.strip()
-            return {"reqId": req_id, "status": "ok", "detail": f"locked={locked}"}
+            return {"reqId": req_id, "status": "ok", "detail": f"locked={locked}",
+                    "lan": lan_ip()}
         except subprocess.CalledProcessError as exc:
             return {"reqId": req_id, "status": "error", "detail": str(exc)}
     else:

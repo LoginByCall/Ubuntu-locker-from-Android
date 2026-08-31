@@ -21,6 +21,8 @@ import javax.crypto.spec.SecretKeySpec
 data class CommandResult(
     val ok: Boolean,
     val detail: String,
+    /** Текущий LAN-адрес ПК из ответа на status (пусто, если сервер не прислал). */
+    val lan: String = "",
 )
 
 /**
@@ -40,6 +42,11 @@ class TcpCommandClient {
     private val tag = "TcpCommandClient"
     private val connectTimeoutMs = 3000
     private val readTimeoutMs = 5000
+
+    // Быстрая проба LAN-адреса. Если ПК в той же сети — ответ за десятки мс;
+    // если нет — сокет отваливается по таймауту (или сразу ENETUNREACH),
+    // и дальше идёт обычный путь. Цена ошибки — эти 400 мс.
+    private val lanConnectTimeoutMs = 400
 
     suspend fun lock(settings: ServerSettings): CommandResult = send("lock", settings)
 
@@ -61,6 +68,8 @@ class TcpCommandClient {
                 put("sig", sign("$cmd|$reqId|$ts", settings.token))
             }.toString()
 
+            sendViaLan(settings, cmd, reqId, request)?.let { return@withContext it }
+
             runCatching {
                 val embedded = useEmbeddedZt(settings)
                 Log.i(tag, "$cmd -> ${settings.host} (транспорт: ${if (embedded) "libzt" else "direct"})")
@@ -71,6 +80,28 @@ class TcpCommandClient {
                 CommandResult(false, e.message ?: "ошибка сети")
             }
         }
+
+    /**
+     * Попытка по локальному адресу ПК. null = LAN-путь не сработал
+     * (адреса нет, он совпадает с основным или ПК в этой сети не отвечает).
+     */
+    private fun sendViaLan(
+        settings: ServerSettings, cmd: String, reqId: String, request: String,
+    ): CommandResult? {
+        val lan = settings.lan
+        if (lan.isBlank() || lan == settings.host) return null
+        return runCatching {
+            Socket().use { socket ->
+                socket.connect(InetSocketAddress(lan, settings.port), lanConnectTimeoutMs)
+                socket.soTimeout = readTimeoutMs
+                Log.i(tag, "$cmd -> $lan (транспорт: lan)")
+                exchange(socket.getInputStream(), socket.getOutputStream(), cmd, reqId, request)
+            }
+        }.getOrElse {
+            Log.i(tag, "LAN-путь недоступен ($lan): ${it.message}")
+            null
+        }
+    }
 
     /**
      * Встроенный узел ZeroTier нужен, когда у профиля задана сеть, а системного
@@ -143,7 +174,7 @@ class TcpCommandClient {
         val ok = json.optString("status") == "ok"
         val detail = json.optString("detail")
         Log.i(tag, "$cmd reqId=$reqId -> ${json.optString("status")} ($detail)")
-        return CommandResult(ok, detail)
+        return CommandResult(ok, detail, json.optString("lan").trim())
     }
 
     private fun sign(message: String, token: String): String {

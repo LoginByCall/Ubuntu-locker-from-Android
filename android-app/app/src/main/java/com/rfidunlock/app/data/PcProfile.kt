@@ -10,7 +10,9 @@ import androidx.room.PrimaryKey
  *
  * @param id стабильный идентификатор профиля (UUID из QR), первичный ключ.
  * @param name удобочитаемое имя ПК (hostname из QR).
- * @param host IP-адрес ПК в локальной сети.
+ * @param host основной адрес ПК (ZeroTier/Yggdrasil или LAN — что нашёл агент).
+ * @param lan адрес ПК в локальной сети; пробуется первым и обновляется из
+ *   ответа на status (DHCP). Пусто = только [host].
  * @param port TCP-порт агента.
  * @param token предварительный токен для аутентификации команд.
  * @param os семейство ОС ПК (ubuntu/linux/windows/macos) для иконки на плитке.
@@ -27,6 +29,7 @@ data class PcProfile(
     @PrimaryKey val id: String,
     val name: String,
     val host: String,
+    val lan: String = "",
     val port: Int = 5390,
     val token: String = "",
     val os: String = "",
@@ -39,7 +42,7 @@ data class PcProfile(
 ) {
     /** Транспортные настройки для [com.rfidunlock.app.net.TcpCommandClient]. */
     fun toServerSettings(): ServerSettings = ServerSettings(
-        host = host, port = port, token = token,
+        host = host, lan = lan, port = port, token = token,
         ztNetworkId = ztNetworkId, ztMoonId = ztMoonId, ztRoots = ztRoots,
     )
 

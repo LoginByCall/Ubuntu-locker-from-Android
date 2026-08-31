@@ -82,6 +82,8 @@ class PcGridViewModel(
     private suspend fun queryStatus(profile: PcProfile): PcStatus {
         val result = client.status(profile.toServerSettings())
         if (!result.ok) return PcStatus.OFFLINE
+        // ПК сообщает свой текущий адрес в LAN — так быстрый путь переживает DHCP.
+        repository.setLan(profile, result.lan)
         // detail вида "locked=<LockedHint>", где LockedHint = yes/no (loginctl).
         val detail = result.detail.lowercase()
         return when {

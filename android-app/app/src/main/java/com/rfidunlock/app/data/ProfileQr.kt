@@ -7,7 +7,8 @@ import org.json.JSONObject
  *
  * Формат полезной нагрузки (JSON):
  * ```
- * {"v":1,"id":"<uuid>","name":"<hostname>","host":"<lan-ip>","port":5390,"token":"<token>"}
+ * {"v":1,"id":"<uuid>","name":"<hostname>","host":"<ip>","lan":"<lan-ip>",
+ *  "port":5390,"token":"<token>"}
  * ```
  */
 object ProfileQr {
@@ -41,6 +42,7 @@ object ProfileQr {
         val id = json.optString("id").trim()
         val name = json.optString("name").trim()
         val host = json.optString("host").trim()
+        val lan = json.optString("lan").trim()
         val port = json.optInt("port", 5390)
         val token = json.optString("token").trim()
         val os = json.optString("os").trim()
@@ -57,6 +59,7 @@ object ProfileQr {
                 id = id,
                 name = name.ifEmpty { host },
                 host = host,
+                lan = lan,
                 port = port,
                 token = token,
                 os = os,

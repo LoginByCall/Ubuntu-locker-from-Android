@@ -5,7 +5,7 @@
 добавить профиль одним сканированием (Этап «Профили ПК»).
 
 QR кодирует JSON-профиль:
-    {"v": 1, "id": "<uuid>", "name": "<hostname>", "host": "<lan-ip>",
+    {"v": 1, "id": "<uuid>", "name": "<hostname>", "host": "<lan-ip>", "lan": "<lan-ip>",
      "port": <port>, "token": "<token>"}
 
 Поля:
@@ -170,6 +170,9 @@ def build_payload() -> str:
         "port": PORT,
         "token": read_token(),
         "os": os_family(),
+        # Адрес в LAN: телефон пробует его первым — в одной сети это ~50 мс
+        # против ~30-40 с холодного старта встроенного узла ZeroTier.
+        "lan": lan_ip(),
     }
     if zt_network_id():
         payload["ztnet"] = zt_network_id()

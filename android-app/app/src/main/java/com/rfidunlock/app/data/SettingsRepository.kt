@@ -15,6 +15,8 @@ private val Context.dataStore: DataStore<Preferences> by preferencesDataStore("s
 /** Параметры подключения к ПК. */
 data class ServerSettings(
     val host: String = "",
+    /** Адрес в LAN — быстрый путь, пробуется до основного. Может быть пуст. */
+    val lan: String = "",
     val port: Int = 5390,
     val token: String = "",
     val ztNetworkId: String = "",

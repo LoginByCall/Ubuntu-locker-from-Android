@@ -21,6 +21,7 @@ class PcProfileRepository(private val dao: PcProfileDao) {
                 existing.copy(
                     name = profile.name,
                     host = profile.host,
+                    lan = profile.lan,
                     port = profile.port,
                     token = profile.token,
                     os = profile.os,
@@ -31,6 +32,12 @@ class PcProfileRepository(private val dao: PcProfileDao) {
                 )
             )
         }
+    }
+
+    /** Обновить адрес ПК в LAN (пришёл в ответе на status; меняется по DHCP). */
+    suspend fun setLan(profile: PcProfile, lan: String) {
+        if (lan.isBlank() || lan == profile.lan) return
+        dao.update(profile.copy(lan = lan, updatedAt = System.currentTimeMillis()))
     }
 
     /** Включить/выключить LOCK этого ПК при отключении телефона от зарядки. */
