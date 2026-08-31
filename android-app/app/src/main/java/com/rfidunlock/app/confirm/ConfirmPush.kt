@@ -20,6 +20,7 @@ import com.rfidunlock.app.RfidApp
 import com.rfidunlock.app.net.TcpCommandClient
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
@@ -55,9 +56,15 @@ object ConfirmPush {
                     Log.i(TAG, "push недоступен (нет google-services.json?): ${it.message}")
                     return@launch
                 }
-            app.pcProfileRepository.profilesOnce().forEach { profile ->
-                val result = client.register(profile.toServerSettings(), token)
-                Log.i(TAG, "register на ${profile.name}: ${result.ok} ${result.detail}")
+            // Параллельно: недоступный ПК держит соединение до ~3 минут и при
+            // последовательной регистрации не давал зарегистрироваться остальным.
+            coroutineScope {
+                app.pcProfileRepository.profilesOnce().forEach { profile ->
+                    launch {
+                        val result = client.register(profile.toServerSettings(), token)
+                        Log.i(TAG, "register на ${profile.name}: ${result.ok} ${result.detail}")
+                    }
+                }
             }
         }
     }

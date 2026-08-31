@@ -141,6 +141,15 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // Без POST_NOTIFICATIONS (Android 13+) уведомление с подтверждением
+        // молча не показывается: push приходит, а кнопок нет.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) !=
+            android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
+            requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 1)
+        }
+
         nfc = NfcController(
             onTagAttached = ::handleTagAttached,
             onTagRemoved = ::handleTagRemoved,

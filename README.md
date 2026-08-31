@@ -192,15 +192,21 @@ sudo -A ──> rfid-askpass ──> агент ──push(id)──> телеф
 
 1. Создайте бесплатный проект в [Firebase Console](https://console.firebase.google.com/),
    добавьте Android-приложение с пакетом `com.rfidunlock.app`.
-2. `google-services.json` положите в `android-app/app/` и пересоберите APK.
-   Без этого файла проект собирается и работает — нет только подтверждений.
+2. `google-services.json` положите в `android-app/app/` и пересоберите APK
+   (файл в `.gitignore` — он содержит id проекта и приложения). Без него проект
+   собирается и работает — нет только подтверждений.
 3. Ключ сервис-аккаунта (Project settings → Service accounts → Generate new
    private key) положите на ПК:
    ```bash
    install -m 600 ~/Downloads/<ключ>.json ~/.config/rfid-agent/fcm-sa.json
    ```
-4. Запустите приложение — оно само пришлёт агенту push-токен (команда
-   `register`, файл `~/.config/rfid-agent/fcm-token`).
+4. Запустите приложение и **разрешите уведомления** (спросит при первом запуске).
+   Без этого разрешения push приходит, но кнопок не видно. Приложение само
+   пришлёт агенту push-токен (команда `register`, файл
+   `~/.config/rfid-agent/fcm-token`).
+
+Проверить, не настраивая sudo: `rfid-confirm.py "Проверка" -t 60` — на телефоне
+появится уведомление с кнопками, код возврата 0 (подтвердил) или 1 (отказ/таймаут).
 
 **Пароль sudo** храните в связке ключей (не на диске):
 

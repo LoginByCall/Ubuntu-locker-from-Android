@@ -42,3 +42,8 @@ ubuntu-agent/yggdrasil/*.local
 
 # Реальные адреса/идентификаторы инфраструктуры — только локально
 *.local.md
+
+# Firebase: клиентский конфиг (id проекта/приложения) и ключ сервис-аккаунта
+android-app/app/google-services.json
+*firebase-adminsdk*.json
+fcm-sa.json
