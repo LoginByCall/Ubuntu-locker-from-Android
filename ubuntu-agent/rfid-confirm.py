@@ -38,6 +38,7 @@ import termios
 import threading
 import time
 import uuid
+import pathlib
 from pathlib import Path
 
 CONF_DIR = Path(os.environ.get("XDG_CONFIG_HOME", str(Path.home() / ".config"))) / "rfid-agent"
@@ -210,6 +211,28 @@ def race_local_and_phone(prompt: str, timeout_s: int) -> tuple[str, str]:
             local.close()
 
 
+def sudo_prompt() -> str:
+    """Что именно подтверждаем: команду берём у родителя — это сам sudo.
+
+    Своей команды sudo помощнику askpass не сообщает (в окружении её нет),
+    зато она видна в аргументах родительского процесса.
+    """
+    try:
+        argv = pathlib.Path(f"/proc/{os.getppid()}/cmdline").read_bytes()
+    except OSError:
+        return ""
+    parts = [a for a in argv.decode("utf-8", "replace").split("\0") if a]
+    if not parts or not parts[0].rstrip("0123456789").endswith("sudo"):
+        return ""
+    # выбрасываем сам sudo и его флаги; с первого не-флага начинается
+    # команда пользователя — её показываем целиком, вместе с аргументами
+    rest = parts[1:]
+    while rest and rest[0].startswith("-"):
+        rest = rest[1:]
+    command = " ".join(rest)
+    return f"sudo: {command}" if command else "sudo (без команды)"
+
+
 def sudo_password() -> str:
     """Пароль из связки ключей, иначе из файла."""
     try:
@@ -235,9 +258,8 @@ def main() -> int:
                         help="при подтверждении напечатать пароль sudo (режим SUDO_ASKPASS)")
     args = parser.parse_args()
 
-    prompt = args.prompt or os.environ.get("SUDO_COMMAND", "") or "Подтвердить действие?"
-    if args.password and not args.prompt:
-        prompt = f"sudo: {os.environ.get('SUDO_COMMAND', 'команда')}"
+    prompt = args.prompt or (sudo_prompt() if args.password else "") \
+        or "Подтвердить действие?"
 
     if args.password:
         # Гонка: что быстрее — руки на клавиатуре или кнопка на телефоне.
