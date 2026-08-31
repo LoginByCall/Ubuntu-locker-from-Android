@@ -30,6 +30,7 @@ import json
 import os
 import queue
 import select
+import shutil
 import socket
 import subprocess
 import sys
@@ -86,62 +87,127 @@ def cancel_ask(ask_id: str) -> None:
         pass  # агент уже отпустил запрос по таймауту — ничего страшного
 
 
-def race_tty_and_phone(prompt: str, timeout_s: int) -> tuple[str, str]:
-    """Спросить одновременно терминал и телефон; вернуть (источник, пароль).
+class TtyChannel:
+    """Ввод пароля в терминале с выключенным эхом."""
 
-    Источник: "tty" — пароль набран руками (он и возвращается), "phone" —
-    подтверждено с телефона (пароль берётся из хранилища), "" — отказ/таймаут.
-    Терминала может не быть (запуск из GUI/cron) — тогда только телефон.
-    """
+    def __init__(self, prompt: str) -> None:
+        self.fd = os.open("/dev/tty", os.O_RDWR | os.O_NOCTTY)
+        self.saved = termios.tcgetattr(self.fd)
+        quiet = termios.tcgetattr(self.fd)
+        quiet[3] &= ~termios.ECHO  # lflag
+        termios.tcsetattr(self.fd, termios.TCSADRAIN, quiet)
+        os.write(self.fd, f"{prompt}\nПароль (или подтвердите на телефоне): "
+                 .encode("utf-8"))
+        self.typed = b""
+
+    def poll(self) -> str | None:
+        """Готовый пароль или None, пока Enter не нажат."""
+        ready, _, _ = select.select([self.fd], [], [], 0.1)
+        if not ready:
+            return None
+        char = os.read(self.fd, 1)
+        if char in (b"\r", b"\n"):
+            os.write(self.fd, b"\n")
+            return self.typed.decode("utf-8", "replace")
+        if char in (b"\x7f", b"\b"):
+            self.typed = self.typed[:-1]
+        elif char == b"\x03":
+            raise KeyboardInterrupt
+        elif char:
+            self.typed += char
+        return None
+
+    def note(self, text: str) -> None:
+        os.write(self.fd, f"\n{text}\n".encode("utf-8"))
+
+    def close(self) -> None:
+        termios.tcsetattr(self.fd, termios.TCSADRAIN, self.saved)
+        os.close(self.fd)
+
+
+class GuiChannel:
+    """Окно ввода пароля (zenity/kdialog) — когда терминала нет."""
+
+    def __init__(self, prompt: str) -> None:
+        if shutil.which("zenity"):
+            argv = ["zenity", "--password", "--title", prompt[:60]]
+        elif shutil.which("kdialog"):
+            argv = ["kdialog", "--password", prompt]
+        else:
+            raise OSError("нет zenity/kdialog")
+        self.proc = subprocess.Popen(argv, stdout=subprocess.PIPE,
+                                     stderr=subprocess.DEVNULL, text=True)
+
+    def poll(self) -> str | None:
+        """Пароль из окна; None — окно ещё открыто или его закрыли крестиком."""
+        if self.proc.poll() is None:
+            time.sleep(0.1)
+            return None
+        if self.proc.returncode != 0:  # отменил окно — ждём дальше телефон
+            raise EOFError
+        return (self.proc.stdout.read() or "").rstrip("\n")
+
+    def note(self, text: str) -> None:
+        pass  # окно уже закрыто; сообщать некуда
+
+    def close(self) -> None:
+        if self.proc.poll() is None:
+            self.proc.terminate()  # телефон успел раньше — окно убираем
+
+
+def open_local_channel(prompt: str):
+    """Канал ввода на самом ПК: терминал, иначе окно, иначе ничего."""
     try:
-        tty_fd = os.open("/dev/tty", os.O_RDWR | os.O_NOCTTY)
+        return TtyChannel(prompt)
     except OSError:
-        ok, detail = ask(prompt, timeout_s)
-        return ("phone", "") if ok else ("", detail)
+        pass
+    if os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"):
+        try:
+            return GuiChannel(prompt)
+        except OSError:
+            pass
+    return None
 
+
+def race_local_and_phone(prompt: str, timeout_s: int) -> tuple[str, str]:
+    """Спросить одновременно ПК (терминал или окно) и телефон; кто быстрее.
+
+    Возвращает ("local", пароль) — ввели на ПК; ("phone", "") — подтвердили
+    на телефоне (пароль берётся из хранилища); ("", причина) — отказ/таймаут.
+    """
     ask_id = str(uuid.uuid4())
     answers: queue.Queue = queue.Queue()
     threading.Thread(
-        target=lambda: answers.put(("phone",) + ask(prompt, timeout_s, ask_id)),
+        target=lambda: answers.put(ask(prompt, timeout_s, ask_id)),
         daemon=True,
     ).start()
 
-    old_mode = termios.tcgetattr(tty_fd)
-    quiet = termios.tcgetattr(tty_fd)
-    quiet[3] &= ~termios.ECHO  # lflag: не показывать набираемый пароль
-    typed = b""
+    local = open_local_channel(prompt)
     try:
-        termios.tcsetattr(tty_fd, termios.TCSADRAIN, quiet)
-        os.write(tty_fd, f"{prompt}\nПароль (или подтвердите на телефоне): "
-                 .encode("utf-8"))
         deadline = time.time() + timeout_s
         while time.time() < deadline:
             if not answers.empty():
-                _, ok, detail = answers.get()
-                os.write(tty_fd, b"\n")
-                if ok:
-                    os.write(tty_fd, "Подтверждено с телефона.\n".encode("utf-8"))
-                    return "phone", ""
-                return "", detail
-            ready, _, _ = select.select([tty_fd], [], [], 0.1)
-            if not ready:
+                ok, detail = answers.get()
+                if local is not None:
+                    local.note("Подтверждено с телефона." if ok else f"Отказано: {detail}")
+                return ("phone", "") if ok else ("", detail)
+            if local is None:
+                time.sleep(0.1)
                 continue
-            char = os.read(tty_fd, 1)
-            if char in (b"\r", b"\n"):
-                os.write(tty_fd, b"\n")
+            try:
+                typed = local.poll()
+            except EOFError:  # окно закрыли — остаётся только телефон
+                local.close()
+                local = None
+                continue
+            if typed is not None:
                 cancel_ask(ask_id)  # телефон больше не нужен
-                return "tty", typed.decode("utf-8", "replace")
-            if char in (b"\x7f", b"\b"):
-                typed = typed[:-1]
-            elif char == b"\x03":
-                raise KeyboardInterrupt
-            elif char:
-                typed += char
+                return "local", typed
         cancel_ask(ask_id)
         return "", "timeout"
     finally:
-        termios.tcsetattr(tty_fd, termios.TCSADRAIN, old_mode)
-        os.close(tty_fd)
+        if local is not None:
+            local.close()
 
 
 def sudo_password() -> str:
@@ -175,8 +241,8 @@ def main() -> int:
 
     if args.password:
         # Гонка: что быстрее — руки на клавиатуре или кнопка на телефоне.
-        source, value = race_tty_and_phone(prompt, args.timeout)
-        if source == "tty":
+        source, value = race_local_and_phone(prompt, args.timeout)
+        if source == "local":
             print(value)
             return 0
         if source != "phone":

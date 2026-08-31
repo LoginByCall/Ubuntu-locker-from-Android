@@ -101,5 +101,33 @@ pushed.clear()
 code, stdout = run_askpass_pty(typed="набрано-руками", verdict=None)
 assert code == 0 and stdout.strip() == "набрано-руками", (code, stdout)
 
+
+def run_askpass_gui(zenity_body: str, verdict: str | None) -> tuple[int, str]:
+    """Запуск без терминала: сработать должен GUI-канал (подставной zenity)."""
+    (stub_bin / "zenity").write_text(zenity_body)
+    (stub_bin / "zenity").chmod(0o755)
+    env = {**os.environ, "SUDO_COMMAND": "/usr/bin/apt update", "DISPLAY": ":99",
+           "PATH": f"{stub_bin}:{os.environ['PATH']}", "RFID_PORT": PORT}
+    if verdict:
+        threading.Thread(target=answer, args=(verdict,), daemon=True).start()
+    # start_new_session: своя сессия без управляющего терминала → /dev/tty
+    # недоступен, и CLI обязан выбрать окно, а не терминал.
+    proc = subprocess.run(["./rfid-askpass"], capture_output=True, text=True,
+                          env=env, start_new_session=True, stdin=subprocess.DEVNULL,
+                          timeout=90)
+    return proc.returncode, proc.stdout
+
+
+# 5. Нет терминала, окно отвечает первым.
+pushed.clear()
+code, stdout = run_askpass_gui("#!/bin/sh\nsleep 0.5; echo 'из-окна'\n", verdict=None)
+assert code == 0 and stdout.strip() == "из-окна", (code, stdout)
+
+# 6. Нет терминала, телефон опережает окно — окно закрывается.
+pushed.clear()
+code, stdout = run_askpass_gui("#!/bin/sh\nsleep 60; echo поздно\n", verdict="approve")
+assert code == 0 and stdout.strip() == "пароль-для-теста", (code, stdout)
+
 print("OK: rfid-askpass отдаёт пароль только после подтверждения")
 print("OK: гонка терминал/телефон — выигрывает тот, кто ответил первым")
+print("OK: без терминала гонка идёт между окном (zenity) и телефоном")
