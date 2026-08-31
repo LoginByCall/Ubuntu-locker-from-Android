@@ -124,6 +124,9 @@ abstract class PcTileService(private val slot: Int) : TileService() {
 
     private suspend fun queryStatus(p: PcProfile): PcStatus {
         val result = client.status(p.toServerSettings())
+        // ПК сообщает свой адрес в LAN — так быстрый путь появляется и у тех,
+        // кто пользуется только плиткой и метками, не открывая экран ПК.
+        (application as RfidApp).pcProfileRepository.setLan(p, result.lan)
         val detail = result.detail.lowercase()
         return when {
             !result.ok -> PcStatus.OFFLINE
