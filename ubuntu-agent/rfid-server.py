@@ -16,7 +16,8 @@
 Подтверждение действий на телефоне (ask/confirm/register):
   ask      — локальный запрос с ПК (sudo и т. п.): «спроси у телефона». Сервер
              будит приложение push-уведомлением (FCM) и блокируется до вердикта.
-  confirm  — вердикт от телефона: {"askId": "<id ask>", "verdict": "approve"|"deny"}.
+  confirm  — вердикт: {"askId": "<id ask>", "verdict": "approve"|"deny"|"cancel"};
+             cancel шлёт сам ПК, когда пароль успели ввести в терминале.
   register — телефон сообщает свой FCM-токен для push.
 Тело этих команд входит в подпись (см. SIGNED_FIELDS), иначе вердикт можно было
 бы подменить в пути.
@@ -249,7 +250,8 @@ def resolve_ask(ask_id: str, verdict: str) -> tuple[bool, str]:
         entry = _pending.get(ask_id)
         if entry is None:
             return False, "unknown-ask"  # истёк по таймауту или чужой id
-        entry["verdict"] = "approve" if verdict == "approve" else "deny"
+        # cancel — пароль уже введён в терминале, запрос снят самим ПК.
+        entry["verdict"] = verdict if verdict in ("approve", "deny", "cancel") else "deny"
         entry["event"].set()
     return True, "accepted"
 
