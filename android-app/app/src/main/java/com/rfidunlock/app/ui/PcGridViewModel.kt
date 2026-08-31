@@ -51,7 +51,12 @@ class PcGridViewModel(
             // остальные — даже те, что отвечают по LAN за 30 мс.
             coroutineScope {
                 profiles.value.forEach { profile ->
-                    launch { setStatus(profile.id, queryStatus(profile)) }
+                    launch {
+                        setStatus(profile.id, queryStatus(profile))
+                        // Индикатор гаснет по первому ответу: ждать недоступный
+                        // ПК незачем — его плитка сама станет «офлайн» позже.
+                        _refreshing.value = false
+                    }
                 }
             }
             _refreshing.value = false
