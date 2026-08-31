@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -45,8 +46,14 @@ class PcGridViewModel(
     fun refresh() {
         viewModelScope.launch {
             _refreshing.value = true
-            val current = profiles.value
-            current.forEach { setStatus(it.id, queryStatus(it)) }
+            // Параллельно: недоступный ПК держит соединение до ~90 с (два
+            // таймаута libzt) и при последовательном опросе задерживал
+            // остальные — даже те, что отвечают по LAN за 30 мс.
+            coroutineScope {
+                profiles.value.forEach { profile ->
+                    launch { setStatus(profile.id, queryStatus(profile)) }
+                }
+            }
             _refreshing.value = false
         }
     }
