@@ -5,6 +5,12 @@ plugins {
     id("com.google.devtools.ksp")
 }
 
+// Push для подтверждений включается, только если положен google-services.json
+// (см. README). Без него проект собирается и работает — нет лишь подтверждений.
+if (file("google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
+}
+
 android {
     namespace = "com.rfidunlock.app"
     compileSdk = 34
@@ -79,6 +85,12 @@ dependencies {
 
     // ZXing — сканирование QR-кода профиля ПК
     implementation("com.journeyapps:zxing-android-embedded:4.3.0")
+
+    // Firebase Cloud Messaging — «звонок» с ПК: разбудить телефон запросом
+    // подтверждения. Сам вердикт идёт по своему каналу, не через Google.
+    implementation(platform("com.google.firebase:firebase-bom:33.1.2"))
+    implementation("com.google.firebase:firebase-messaging")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.8.1")
 
     // Bouncy Castle для генерации self-signed сертификата KDE Connect
     implementation("org.bouncycastle:bcpkix-jdk18on:1.78.1")

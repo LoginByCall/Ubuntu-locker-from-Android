@@ -9,6 +9,9 @@ class PcProfileRepository(private val dao: PcProfileDao) {
 
     suspend fun findById(id: String): PcProfile? = dao.findById(id)
 
+    /** Разовый снимок списка профилей (для фоновых задач без подписки). */
+    suspend fun profilesOnce(): List<PcProfile> = dao.findAll()
+
     suspend fun count(): Int = dao.count()
 
     /** Сохранить новый профиль или обновить существующий по id (из QR). */

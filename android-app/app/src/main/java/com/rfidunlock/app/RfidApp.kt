@@ -31,6 +31,8 @@ class RfidApp : Application() {
         settingsRepository = SettingsRepository(this)
         pcProfileRepository = PcProfileRepository(db.pcProfileDao())
         migrateLegacySettings()
+        // Сообщить ПК push-токен: без него ПК не сможет запросить подтверждение.
+        com.rfidunlock.app.confirm.ConfirmPush.registerWithPcs(this)
     }
 
     /**

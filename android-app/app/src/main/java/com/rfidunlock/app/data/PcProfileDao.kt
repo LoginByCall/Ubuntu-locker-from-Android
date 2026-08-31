@@ -14,6 +14,9 @@ interface PcProfileDao {
     @Query("SELECT * FROM pc_profiles ORDER BY name COLLATE NOCASE ASC")
     fun observeAll(): Flow<List<PcProfile>>
 
+    @Query("SELECT * FROM pc_profiles ORDER BY name COLLATE NOCASE ASC")
+    suspend fun findAll(): List<PcProfile>
+
     @Query("SELECT * FROM pc_profiles WHERE id = :id LIMIT 1")
     suspend fun findById(id: String): PcProfile?
 

@@ -49,6 +49,25 @@
             android:exported="false"
             android:foregroundServiceType="connectedDevice" />
 
+        <!-- Подтверждение действий на ПК (sudo и т. п.) со смартфона -->
+        <service
+            android:name=".confirm.ConfirmMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+        <receiver
+            android:name=".confirm.ConfirmDenyReceiver"
+            android:exported="false" />
+        <!-- Запуск с экрана блокировки Android разрешает только после
+             аутентификации хозяина — это и есть защита кнопки «Подтвердить». -->
+        <activity
+            android:name=".confirm.ConfirmActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+
         <!-- Выбор ПК для плитки шторки: тап по пустой плитке или долгое нажатие -->
         <activity
             android:name=".ui.TilePickerActivity"

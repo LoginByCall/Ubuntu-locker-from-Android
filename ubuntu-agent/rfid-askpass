@@ -1,0 +1,4 @@
+#!/bin/sh
+# SUDO_ASKPASS-обёртка: пароль печатается только после подтверждения на телефоне.
+#   export SUDO_ASKPASS=~/.local/bin/rfid-askpass ; alias sudo='sudo -A'
+exec python3 "$(dirname "$(readlink -f "$0")")/rfid-confirm.py" --password -t 60

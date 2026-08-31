@@ -3,7 +3,8 @@
 # install-server.sh — установка TCP-сервера Ubuntu-агента как systemd user-сервиса.
 #
 # Что делает:
-#   - копирует rfid-server.py в ~/.local/bin/rfid-server.py;
+#   - копирует rfid-server.py, rfid-tray.py, rfid-confirm.py, rfid-askpass
+#     в ~/.local/bin/;
 #   - генерирует общий токен (если ещё не задан) в ~/.config/rfid-agent/token;
 #   - создаёт и включает user-сервис rfid-server.service (автозапуск при входе);
 #   - выводит IP, порт и токен для ввода в Android-приложении.
@@ -26,6 +27,11 @@ echo "Установлен сервер: $BIN_DIR/rfid-server.py"
 # 1b. Tray-приложение для показа QR-кода профиля ПК
 install -m 0755 "$SRC_DIR/rfid-tray.py" "$BIN_DIR/rfid-tray.py"
 echo "Установлен tray: $BIN_DIR/rfid-tray.py"
+
+# 1c. Подтверждение действий на телефоне (sudo и т. п.)
+install -m 0755 "$SRC_DIR/rfid-confirm.py" "$BIN_DIR/rfid-confirm.py"
+install -m 0755 "$SRC_DIR/rfid-askpass" "$BIN_DIR/rfid-askpass"
+echo "Установлено подтверждение со смартфона: $BIN_DIR/rfid-askpass"
 
 # 2. Токен
 TOKEN_FILE="$CONF_DIR/token"
@@ -57,6 +63,24 @@ for ZT_HOME in /var/lib/zerotier-one /var/snap/zerotier/common; do
     break
 done
 
+# 2c. Зависимости Python в изолированном venv (PEP 668: pip --user заблокирован).
+# --system-site-packages — ради системного PyGObject (gi) для трея на GNOME.
+#   pystray/qrcode/pillow — QR-код профиля;
+#   google-auth/requests  — push на телефон (подтверждение sudo).
+VENV_DIR="$HOME/.local/share/rfid-agent/venv"
+PY_BIN="/usr/bin/env python3"
+echo "Создание venv и установка зависимостей ..."
+if python3 -m venv --system-site-packages "$VENV_DIR" 2>/dev/null && \
+   "$VENV_DIR/bin/pip" install --quiet --upgrade pip >/dev/null 2>&1 && \
+   "$VENV_DIR/bin/pip" install --quiet pystray "qrcode[pil]" pillow google-auth requests; then
+    echo "Зависимости установлены в $VENV_DIR."
+    PY_BIN="$VENV_DIR/bin/python"
+else
+    echo "ВНИМАНИЕ: venv не создан. Сервер запустится системным python3;"
+    echo "QR-код и push (подтверждение sudo) работать не будут."
+fi
+echo
+
 # 3. systemd user unit
 UNIT_FILE="$UNIT_DIR/rfid-server.service"
 cat >"$UNIT_FILE" <<EOF
@@ -68,7 +92,7 @@ After=graphical-session.target
 Type=simple
 Environment=RFID_PORT=$PORT
 Environment=RFID_TOKEN=$TOKEN
-ExecStart=/usr/bin/env python3 $BIN_DIR/rfid-server.py
+ExecStart=$PY_BIN $BIN_DIR/rfid-server.py
 Restart=on-failure
 RestartSec=3
 
@@ -82,16 +106,8 @@ systemctl --user daemon-reload
 systemctl --user enable --now rfid-server.service
 echo
 
-# 4b. Зависимости для tray-приложения (QR-код) и автозапуск.
-# Используем изолированный venv (на современных Ubuntu pip --user заблокирован, PEP 668).
-# --system-site-packages — чтобы был доступен системный PyGObject (gi) для
-# appindicator-бэкенда трея на GNOME/Ubuntu.
-VENV_DIR="$HOME/.local/share/rfid-agent/venv"
-echo "Создание venv и установка зависимостей tray (pystray qrcode pillow) ..."
-if python3 -m venv --system-site-packages "$VENV_DIR" 2>/dev/null && \
-   "$VENV_DIR/bin/pip" install --quiet --upgrade pip >/dev/null 2>&1 && \
-   "$VENV_DIR/bin/pip" install --quiet pystray "qrcode[pil]" pillow; then
-    echo "Зависимости tray установлены в $VENV_DIR."
+# 4b. Автозапуск tray-приложения (зависимости поставлены в шаге 2c).
+if [[ -x "$VENV_DIR/bin/python" ]]; then
     DESKTOP_FILE="$AUTOSTART_DIR/rfid-tray.desktop"
     cat >"$DESKTOP_FILE" <<EOF
 [Desktop Entry]
@@ -110,10 +126,7 @@ EOF
         echo "Tray запущен."
     fi
 else
-    echo "ВНИМАНИЕ: не удалось установить зависимости tray. QR-код будет недоступен."
-    echo "Установите вручную:"
-    echo "  python3 -m venv $VENV_DIR"
-    echo "  $VENV_DIR/bin/pip install pystray 'qrcode[pil]' pillow"
+    echo "ВНИМАНИЕ: venv не создан — QR-код и push будут недоступны."
 fi
 echo
 

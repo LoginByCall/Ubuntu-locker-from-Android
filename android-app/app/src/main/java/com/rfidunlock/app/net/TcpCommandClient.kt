@@ -54,18 +54,42 @@ class TcpCommandClient {
 
     suspend fun status(settings: ServerSettings): CommandResult = send("status", settings)
 
-    private suspend fun send(cmd: String, settings: ServerSettings): CommandResult =
+    /** Вердикт по запросу подтверждения (askId пришёл в push с ПК). */
+    suspend fun confirm(settings: ServerSettings, askId: String, approve: Boolean): CommandResult =
+        send("confirm", settings, mapOf("askId" to askId,
+            "verdict" to if (approve) "approve" else "deny"))
+
+    /** Сообщить ПК push-токен телефона, чтобы он мог запрашивать подтверждения. */
+    suspend fun register(settings: ServerSettings, fcmToken: String): CommandResult =
+        send("register", settings, mapOf("fcm" to fcmToken))
+
+    /**
+     * Поля тела, входящие в подпись помимо "cmd|reqId|ts" — иначе вердикт
+     * можно было бы подменить в пути (канал без TLS). Порядок важен и должен
+     * совпадать с SIGNED_FIELDS в rfid-server.py.
+     */
+    private val signedFields = mapOf(
+        "confirm" to listOf("askId", "verdict"),
+        "register" to listOf("fcm"),
+    )
+
+    private suspend fun send(
+        cmd: String, settings: ServerSettings, body: Map<String, String> = emptyMap(),
+    ): CommandResult =
         withContext(Dispatchers.IO) {
             if (!settings.isConfigured) {
                 return@withContext CommandResult(false, "ПК не настроен")
             }
             val reqId = UUID.randomUUID().toString()
             val ts = System.currentTimeMillis() / 1000
+            val signed = (listOf(cmd, reqId, ts.toString()) +
+                signedFields[cmd].orEmpty().map { body[it] ?: "" }).joinToString("|")
             val request = JSONObject().apply {
                 put("cmd", cmd)
                 put("reqId", reqId)
                 put("ts", ts)
-                put("sig", sign("$cmd|$reqId|$ts", settings.token))
+                put("sig", sign(signed, settings.token))
+                body.forEach { (key, value) -> put(key, value) }
             }.toString()
 
             sendViaLan(settings, cmd, reqId, request)?.let { return@withContext it }

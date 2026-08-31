@@ -6,11 +6,20 @@
 `loginctl` и отвечает подтверждением по тому же соединению.
 
 Протокол: построчный JSON (одна команда — одна строка, разделитель '\n').
-  Запрос:  {"cmd": "lock"|"unlock"|"status", "reqId": "<nonce>", "ts": <unix-сек>,
+  Запрос:  {"cmd": "lock"|"unlock"|"status"|"ask"|"confirm"|"register",
+            "reqId": "<nonce>", "ts": <unix-сек>,
             "sig": "<hex HMAC-SHA256(token, "cmd|reqId|ts")>"}
   Ответ:   {"reqId": "<id>", "status": "ok"|"error", "detail": "<text>"}
   Ответ на status дополнительно несёт "lan": "<ip>" — текущий адрес ПК в
   локальной сети; телефон обновляет им профиль (адрес меняется по DHCP).
+
+Подтверждение действий на телефоне (ask/confirm/register):
+  ask      — локальный запрос с ПК (sudo и т. п.): «спроси у телефона». Сервер
+             будит приложение push-уведомлением (FCM) и блокируется до вердикта.
+  confirm  — вердикт от телефона: {"askId": "<id ask>", "verdict": "approve"|"deny"}.
+  register — телефон сообщает свой FCM-токен для push.
+Тело этих команд входит в подпись (см. SIGNED_FIELDS), иначе вердикт можно было
+бы подменить в пути.
 
 Аутентификация (этап 2, ТЗ 7.2): HMAC-подпись команды общим токеном.
 Токен по сети не передаётся. Защита от повтора: ts в окне ±AUTH_WINDOW_S
@@ -42,6 +51,18 @@ PORT = int(os.environ.get("RFID_PORT", "5390"))
 TOKEN = os.environ.get("RFID_TOKEN", "")  # пустой = проверка отключена (не рекомендуется)
 
 AUTH_WINDOW_S = 300  # допустимый разбег часов телефона и ПК
+
+CONFIG_DIR = Path(os.environ.get("XDG_CONFIG_HOME", str(Path.home() / ".config"))) / "rfid-agent"
+FCM_SA_FILE = CONFIG_DIR / "fcm-sa.json"      # ключ сервис-аккаунта Firebase (600)
+FCM_TOKEN_FILE = CONFIG_DIR / "fcm-token"     # push-токен телефона (команда register)
+PROFILE_ID_FILE = CONFIG_DIR / "profile-id"   # id профиля ПК (создаёт rfid-tray.py)
+ASK_TIMEOUT_MAX_S = 120
+
+# Поля тела, попадающие в подпись помимо "cmd|reqId|ts" (порядок важен).
+SIGNED_FIELDS: dict[str, tuple[str, ...]] = {
+    "confirm": ("askId", "verdict"),
+    "register": ("fcm",),
+}
 
 STATE_DIR = Path(os.environ.get("XDG_STATE_HOME", str(Path.home() / ".local/state"))) / "rfid-agent"
 LOG_FILE = STATE_DIR / "rfid-server.log"
@@ -127,8 +148,10 @@ def verify_signature(payload: dict) -> str:
         return "missing-auth"
     if abs(now - ts) > AUTH_WINDOW_S:
         return "stale-ts"
+    parts = [cmd, req_id, str(ts)]
+    parts += [str(payload.get(f, "")) for f in SIGNED_FIELDS.get(cmd, ())]
     expected = hmac.new(
-        TOKEN.encode("utf-8"), f"{cmd}|{req_id}|{ts}".encode("utf-8"), hashlib.sha256
+        TOKEN.encode("utf-8"), "|".join(parts).encode("utf-8"), hashlib.sha256
     ).hexdigest()
     if not hmac.compare_digest(expected, sig.lower()):
         return "bad-signature"
@@ -141,7 +164,97 @@ def verify_signature(payload: dict) -> str:
     return ""
 
 
-def handle_command(payload: dict) -> dict:
+# --- Подтверждение действий на телефоне ------------------------------------
+
+_pending_lock = threading.Lock()
+_pending: dict[str, dict] = {}  # askId -> {"event": Event, "verdict": str}
+
+
+def send_push(ask_id: str, prompt: str, timeout_s: int) -> str:
+    """Разбудить телефон push-уведомлением. Возвращает "" (ок) или причину.
+
+    В push уходит только идентификатор запроса и текст приглашения — вердикт
+    возвращается по этому же каналу с HMAC-подписью, поэтому подделать его,
+    имея доступ к push-сервису, нельзя.
+    """
+    try:
+        device_token = FCM_TOKEN_FILE.read_text(encoding="utf-8").strip()
+    except OSError:
+        return "телефон не зарегистрирован (нет команды register)"
+    if not device_token:
+        return "телефон не зарегистрирован"
+    if not FCM_SA_FILE.is_file():
+        return f"нет ключа Firebase: {FCM_SA_FILE}"
+    try:
+        import requests
+        from google.oauth2 import service_account
+        from google.auth.transport.requests import Request as GoogleRequest
+    except ImportError:
+        return "нет google-auth/requests (см. install-server.sh)"
+
+    creds = service_account.Credentials.from_service_account_file(
+        str(FCM_SA_FILE), scopes=["https://www.googleapis.com/auth/firebase.messaging"]
+    )
+    creds.refresh(GoogleRequest())
+    project = json.loads(FCM_SA_FILE.read_text(encoding="utf-8"))["project_id"]
+    body = {"message": {
+        "token": device_token,
+        # data-only + high: приложение само рисует уведомление с кнопками,
+        # high пробивает doze (иначе телефон в кармане ответит через полчаса).
+        "android": {"priority": "high"},
+        "data": {
+            "type": "confirm",
+            "askId": ask_id,
+            "prompt": prompt,
+            "host": socket.gethostname(),
+            # id профиля: телефон по нему находит, какому ПК слать вердикт.
+            "pcId": PROFILE_ID_FILE.read_text(encoding="utf-8").strip()
+                    if PROFILE_ID_FILE.is_file() else "",
+            "expires": str(int(time.time()) + timeout_s),
+        },
+    }}
+    resp = requests.post(
+        f"https://fcm.googleapis.com/v1/projects/{project}/messages:send",
+        json=body, headers={"Authorization": f"Bearer {creds.token}"}, timeout=10,
+    )
+    if resp.status_code != 200:
+        return f"FCM {resp.status_code}: {resp.text[:200]}"
+    return ""
+
+
+def ask_phone(ask_id: str, prompt: str, timeout_s: int) -> tuple[bool, str]:
+    """Спросить подтверждение у телефона и дождаться вердикта (блокирующе)."""
+    event = threading.Event()
+    with _pending_lock:
+        _pending[ask_id] = {"event": event, "verdict": ""}
+    try:
+        error = send_push(ask_id, prompt, timeout_s)
+        if error:
+            log.warning("ASK %s: push не ушёл: %s", ask_id, error)
+            return False, f"push-error: {error}"
+        log.info("ASK %s: жду вердикт (%s, %d c)", ask_id, prompt, timeout_s)
+        if not event.wait(timeout_s):
+            return False, "timeout"
+        with _pending_lock:
+            verdict = _pending[ask_id]["verdict"]
+        return verdict == "approve", verdict
+    finally:
+        with _pending_lock:
+            _pending.pop(ask_id, None)
+
+
+def resolve_ask(ask_id: str, verdict: str) -> tuple[bool, str]:
+    """Принять вердикт от телефона и разбудить ожидающий ask."""
+    with _pending_lock:
+        entry = _pending.get(ask_id)
+        if entry is None:
+            return False, "unknown-ask"  # истёк по таймауту или чужой id
+        entry["verdict"] = "approve" if verdict == "approve" else "deny"
+        entry["event"].set()
+    return True, "accepted"
+
+
+def handle_command(payload: dict, peer: str = "") -> dict:
     """Обработать одну команду и сформировать ответ."""
     req_id = str(payload.get("reqId", ""))
     cmd = str(payload.get("cmd", "")).lower()
@@ -152,8 +265,8 @@ def handle_command(payload: dict) -> dict:
         log.warning("Отклонена команда: %s (cmd=%s reqId=%s)", reason, cmd, req_id)
         return {"reqId": req_id, "status": "error", "detail": "unauthorized"}
 
-    sid = current_session_id()
-    if not sid:
+    sid = "" if cmd in ("ask", "confirm", "register") else current_session_id()
+    if not sid and cmd not in ("ask", "confirm", "register"):
         return {"reqId": req_id, "status": "error", "detail": "no-session"}
 
     if cmd == "lock":
@@ -170,6 +283,23 @@ def handle_command(payload: dict) -> dict:
                     "lan": lan_ip()}
         except subprocess.CalledProcessError as exc:
             return {"reqId": req_id, "status": "error", "detail": str(exc)}
+    elif cmd == "ask":
+        # Инициатор — процесс на самом ПК (sudo askpass, polkit и т. п.).
+        # Снаружи такой запрос принимать незачем: он только шлёт push.
+        if peer not in ("127.0.0.1", "::1", "::ffff:127.0.0.1"):
+            return {"reqId": req_id, "status": "error", "detail": "ask-local-only"}
+        timeout_s = max(5, min(int(payload.get("timeout", 60) or 60), ASK_TIMEOUT_MAX_S))
+        ok, detail = ask_phone(req_id, str(payload.get("prompt", "")), timeout_s)
+    elif cmd == "confirm":
+        ok, detail = resolve_ask(str(payload.get("askId", "")), str(payload.get("verdict", "")))
+    elif cmd == "register":
+        fcm = str(payload.get("fcm", "")).strip()
+        if not fcm:
+            return {"reqId": req_id, "status": "error", "detail": "no-fcm-token"}
+        CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+        FCM_TOKEN_FILE.write_text(fcm + "\n", encoding="utf-8")
+        FCM_TOKEN_FILE.chmod(0o600)
+        ok, detail = True, "registered"
     else:
         return {"reqId": req_id, "status": "error", "detail": f"unknown-cmd:{cmd}"}
 
@@ -179,7 +309,7 @@ def handle_command(payload: dict) -> dict:
 
 
 class Handler(socketserver.StreamRequestHandler):
-    timeout = 30
+    timeout = ASK_TIMEOUT_MAX_S + 30  # ask ждёт вердикт с телефона
 
     def handle(self) -> None:
         peer = self.client_address[0]
@@ -194,7 +324,7 @@ class Handler(socketserver.StreamRequestHandler):
                 except json.JSONDecodeError:
                     self._send({"status": "error", "detail": "bad-json"})
                     continue
-                response = handle_command(payload)
+                response = handle_command(payload, peer)
                 self._send(response)
         except (ConnectionError, socket.timeout) as exc:
             log.info("Соединение с %s завершено: %s", peer, exc)
