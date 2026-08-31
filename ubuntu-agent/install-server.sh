@@ -103,7 +103,10 @@ echo "Создан unit: $UNIT_FILE"
 
 # 4. Запуск
 systemctl --user daemon-reload
-systemctl --user enable --now rfid-server.service
+systemctl --user enable rfid-server.service
+# Именно restart, а не `enable --now`: последний не перезапускает уже
+# работающий юнит, и обновление агента молча не применялось.
+systemctl --user restart rfid-server.service
 echo
 
 # 4b. Автозапуск tray-приложения (зависимости поставлены в шаге 2c).
