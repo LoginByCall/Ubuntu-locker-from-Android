@@ -70,8 +70,10 @@ fun PcGridScreen(
     val profiles by viewModel.profiles.collectAsState()
     val statuses by viewModel.statuses.collectAsState()
 
-    // Профиль, для которого открыт диалог сведений (null — диалог закрыт).
-    var detailsProfile by remember { mutableStateOf<PcProfile?>(null) }
+    // ПК, для которого открыт диалог сведений (null — диалог закрыт). Храним
+    // только id: сам профиль берём из живого списка, иначе переключатели в
+    // диалоге остались бы на снимке, снятом в момент открытия.
+    var detailsProfileId by remember { mutableStateOf<String?>(null) }
     // Профиль, для которого запрошено подтверждение удаления.
     var deletingProfile by remember { mutableStateOf<PcProfile?>(null) }
 
@@ -127,7 +129,7 @@ fun PcGridScreen(
                         profile = profile,
                         status = statuses[profile.id] ?: PcStatus.UNKNOWN,
                         onClick = { viewModel.toggle(profile) },
-                        onShowDetails = { detailsProfile = profile },
+                        onShowDetails = { detailsProfileId = profile.id },
                         onDelete = { deletingProfile = profile },
                     )
                 }
@@ -135,16 +137,18 @@ fun PcGridScreen(
         }
     }
 
-    // Диалог сведений о ПК.
-    detailsProfile?.let { profile ->
+    // Диалог сведений о ПК. Профиль ищем в списке на каждой рекомпозиции:
+    // после записи в базу сюда приходит уже обновлённый, и переключатель
+    // сразу показывает новое состояние. Удалённый профиль закрывает диалог сам.
+    profiles.firstOrNull { it.id == detailsProfileId }?.let { profile ->
         AlertDialog(
-            onDismissRequest = { detailsProfile = null },
+            onDismissRequest = { detailsProfileId = null },
             confirmButton = {
-                TextButton(onClick = { detailsProfile = null }) { Text("Закрыть") }
+                TextButton(onClick = { detailsProfileId = null }) { Text("Закрыть") }
             },
             dismissButton = {
                 TextButton(onClick = {
-                    detailsProfile = null
+                    detailsProfileId = null
                     deletingProfile = profile
                 }) { Text("Удалить") }
             },
