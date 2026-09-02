@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # setup-vps.sh — развёртывание публичного Yggdrasil-пира на выделенном VPS
-# (fallback для CGNAT, см. Архитектура-сетенезависимая-связь.md, раздел 3).
+# (fallback для CGNAT).
 #
 # Что делает:
 #   1. По SSH из peer.local ставит yggdrasil на VPS (apt), генерирует конфиг:

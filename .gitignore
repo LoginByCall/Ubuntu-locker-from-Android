@@ -47,3 +47,10 @@ ubuntu-agent/yggdrasil/*.local
 android-app/app/google-services.json
 *firebase-adminsdk*.json
 fcm-sa.json
+
+# Рабочие документы разработки — только локально, в репозиторий не идут
+CLAUDE.md
+PROGRESS.md
+TZ.md
+Архитектура-сетенезависимая-связь.md
+Паспорт-задачи.md

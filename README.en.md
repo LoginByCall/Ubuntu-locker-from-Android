@@ -13,7 +13,7 @@ Commands are signed with **HMAC-SHA256** and protected against replay; nothing
 beyond the phone and the PC is part of the scheme.
 
 > Status: working product. The acceptance criteria of the spec are confirmed on
-> real devices (test log — [PROGRESS.md](PROGRESS.md)).
+> real devices.
 
 > Note: the app and agent interface is in Russian; this document is a
 > translation of [README.md](README.md).
@@ -75,12 +75,10 @@ flowchart LR
   "sig":"<hex HMAC-SHA256(token, cmd|reqId|ts)>"}` →
   `{"reqId":"…","status":"ok|error","detail":"…"}`.
 
-Networking details: [Архитектура-сетенезависимая-связь.md](Архитектура-сетенезависимая-связь.md)
-(the history of the choice: Yggdrasil → ZeroTier) and [Паспорт-libzt.md](Паспорт-libzt.md)
-(the built-in node: building the AAR, pitfalls, measurements).
+The built-in node (building the AAR, pitfalls, measurements) —
+[Паспорт-libzt.md](Паспорт-libzt.md).
 Full requirements — [ТЗ-RFID-Unlock.md](ТЗ-RFID-Unlock.md).
 For end users: [Инструкция-пользователя.md](Инструкция-пользователя.md).
-Work state for the AI/developer: [Паспорт-задачи.md](Паспорт-задачи.md).
 (These documents are in Russian.)
 
 ---
@@ -105,7 +103,6 @@ ubuntu-agent/     PC agent: TCP server, tray, installers
   install.sh, rfid-agent.sh  first version via GSConnect (legacy)
   yggdrasil/        alternative layer (unused; setup scripts)
 ТЗ-RFID-Unlock.md Specification
-PROGRESS.md       Progress log by stage
 Паспорт-libzt.md  Built-in ZeroTier: implementation details
 ```
 

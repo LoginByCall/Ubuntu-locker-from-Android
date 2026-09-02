@@ -15,7 +15,7 @@ und gegen Wiedereinspielung geschützt; außer Handy und PC gehört nichts zum
 Aufbau.
 
 > Status: funktionierendes Produkt. Die Abnahmekriterien der Spezifikation sind
-> an echten Geräten bestätigt (Prüfprotokoll — [PROGRESS.md](PROGRESS.md)).
+> an echten Geräten bestätigt.
 
 > Hinweis: die Oberfläche von App und Agent ist auf Russisch; dieses Dokument ist
 > eine Übersetzung von [README.md](README.md).
@@ -80,12 +80,10 @@ flowchart LR
   "sig":"<hex HMAC-SHA256(token, cmd|reqId|ts)>"}` →
   `{"reqId":"…","status":"ok|error","detail":"…"}`.
 
-Details der Netzschicht: [Архитектура-сетенезависимая-связь.md](Архитектура-сетенезависимая-связь.md)
-(Geschichte der Auswahl: Yggdrasil → ZeroTier) und [Паспорт-libzt.md](Паспорт-libzt.md)
-(eingebauter Knoten: AAR-Bau, Stolpersteine, Messungen).
+Der eingebaute Knoten (AAR-Bau, Stolpersteine, Messungen) —
+[Паспорт-libzt.md](Паспорт-libzt.md).
 Vollständige Anforderungen — [ТЗ-RFID-Unlock.md](ТЗ-RFID-Unlock.md).
 Für Anwender: [Инструкция-пользователя.md](Инструкция-пользователя.md).
-Arbeitsstand für KI/Entwickler: [Паспорт-задачи.md](Паспорт-задачи.md).
 (Diese Dokumente sind auf Russisch.)
 
 ---
@@ -110,7 +108,6 @@ ubuntu-agent/     PC-Agent: TCP-Server, Tray, Installer
   install.sh, rfid-agent.sh  erste Fassung über GSConnect (Altlast)
   yggdrasil/        alternative Schicht (ungenutzt; Setup-Skripte)
 ТЗ-RFID-Unlock.md Technische Spezifikation
-PROGRESS.md       Fortschrittsprotokoll nach Etappen
 Паспорт-libzt.md  Eingebautes ZeroTier: Umsetzungsdetails
 ```
 

@@ -15,8 +15,7 @@ sin ocupar la ranura VPN de Android). Los comandos van firmados con
 el móvil y el PC.
 
 > Estado: producto en funcionamiento. Los criterios de aceptación de la
-> especificación están verificados en dispositivos reales (registro de pruebas —
-> [PROGRESS.md](PROGRESS.md)).
+> especificación están verificados en dispositivos reales.
 
 > Nota: la interfaz de la aplicación y del agente está en ruso; este documento es
 > una traducción de [README.md](README.md).
@@ -80,12 +79,10 @@ flowchart LR
   "sig":"<hex HMAC-SHA256(token, cmd|reqId|ts)>"}` →
   `{"reqId":"…","status":"ok|error","detail":"…"}`.
 
-Detalles de la capa de red: [Архитектура-сетенезависимая-связь.md](Архитектура-сетенезависимая-связь.md)
-(historia de la elección: Yggdrasil → ZeroTier) y [Паспорт-libzt.md](Паспорт-libzt.md)
-(nodo integrado: compilación del AAR, tropiezos, mediciones).
+El nodo integrado (compilación del AAR, tropiezos, mediciones) —
+[Паспорт-libzt.md](Паспорт-libzt.md).
 Requisitos completos — [ТЗ-RFID-Unlock.md](ТЗ-RFID-Unlock.md).
 Para el usuario: [Инструкция-пользователя.md](Инструкция-пользователя.md).
-Estado del trabajo para la IA/el desarrollador: [Паспорт-задачи.md](Паспорт-задачи.md).
 (Estos documentos están en ruso.)
 
 ---
@@ -110,7 +107,6 @@ ubuntu-agent/     Agente del PC: servidor TCP, bandeja, instaladores
   install.sh, rfid-agent.sh  primera versión vía GSConnect (heredada)
   yggdrasil/        capa alternativa (sin uso; scripts de instalación)
 ТЗ-RFID-Unlock.md Especificación técnica
-PROGRESS.md       Registro de avance por etapas
 Паспорт-libzt.md  ZeroTier integrado: detalles de implementación
 ```
 
