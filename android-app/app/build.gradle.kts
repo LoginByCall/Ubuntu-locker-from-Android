@@ -11,6 +11,17 @@ if (file("google-services.json").exists()) {
     apply(plugin = "com.google.gms.google-services")
 }
 
+// Единый источник версии для агента и приложения — файл VERSION в корне
+// репозитория; поднимается скриптом tools/bump-version.sh.
+val productVersion: String = rootProject.file("../VERSION").let { file ->
+    require(file.exists()) { "Не найден ${file.absolutePath} — версия берётся оттуда" }
+    file.readText().trim()
+}
+// versionCode должен монотонно расти: 1.2.3 -> 10203.
+val productVersionCode: Int = productVersion.split(".").let { (major, minor, patch) ->
+    major.toInt() * 10000 + minor.toInt() * 100 + patch.toInt()
+}
+
 android {
     namespace = "com.rfidunlock.app"
     compileSdk = 34
@@ -19,8 +30,8 @@ android {
         applicationId = "com.rfidunlock.app"
         minSdk = 29
         targetSdk = 34
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = productVersionCode
+        versionName = productVersion
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -43,6 +54,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true  // BuildConfig.VERSION_NAME — версия на экране настроек
     }
     packaging {
         resources {

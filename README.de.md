@@ -109,8 +109,34 @@ ubuntu-agent/     PC-Agent: TCP-Server, Tray, Installer
   test_lan_reply.py Regressionstest: status liefert die LAN-Adresse des PCs
   install.sh, rfid-agent.sh  erste Fassung über GSConnect (Altlast)
   yggdrasil/        alternative Schicht (ungenutzt; Setup-Skripte)
+tools/bump-version.sh  Produktversion anheben und Tag setzen
+VERSION           einheitliche Versionsnummer für Agent und App
+CHANGELOG.md      Änderungsprotokoll nach Versionen
 ТЗ-RFID-Unlock.md Technische Spezifikation
 Паспорт-libzt.md  Eingebautes ZeroTier: Umsetzungsdetails
+```
+
+---
+
+## Versionen
+
+Eine Nummer für das ganze Produkt: Agent und App erscheinen zusammen und müssen
+zusammenpassen (die App prüft die Signatur der Antworten, die ein älterer Agent
+nicht setzt). Quelle der Wahrheit ist die Datei [`VERSION`](VERSION): daraus
+liest Gradle `versionName`/`versionCode`, und das Installationsskript legt eine
+Kopie neben die Konfiguration des Agenten. Das Schema ist
+[semantisch](https://semver.org/lang/de/), die Änderungen stehen in
+[CHANGELOG.md](CHANGELOG.md).
+
+```bash
+rfid-server.py --version   # Version des Agenten; die der App steht unten in den „Einstellungen“
+```
+
+Version anheben (die Änderungen vorher in `CHANGELOG.md` beschreiben):
+
+```bash
+tools/bump-version.sh 1.1.0
+git push origin main --follow-tags
 ```
 
 ---

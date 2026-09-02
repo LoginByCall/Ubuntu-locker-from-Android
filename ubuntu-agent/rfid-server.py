@@ -58,7 +58,18 @@ FCM_SA_FILE = CONFIG_DIR / "fcm-sa.json"      # ключ сервис-аккау
 FCM_TOKEN_FILE = CONFIG_DIR / "fcm-token"     # push-токен телефона (команда register)
 PROFILE_ID_FILE = CONFIG_DIR / "profile-id"   # id профиля ПК (создаёт rfid-tray.py)
 TOKEN_FILE = CONFIG_DIR / "token"             # общий секрет (600), см. install-server.sh
+VERSION_FILE = CONFIG_DIR / "version"         # версия сборки, кладёт install-server.sh
 ASK_TIMEOUT_MAX_S = 120
+
+
+def version() -> str:
+    """Версия сборки: VERSION из репозитория, иначе копия, снятая установщиком."""
+    for path in (Path(__file__).resolve().parent.parent / "VERSION", VERSION_FILE):
+        try:
+            return path.read_text(encoding="utf-8").strip()
+        except OSError:
+            continue
+    return "dev"
 
 
 def load_token() -> str:
@@ -77,6 +88,7 @@ def load_token() -> str:
 
 
 TOKEN = load_token()
+VERSION = version()
 
 # Поля тела, попадающие в подпись помимо "cmd|reqId|ts" (порядок важен).
 SIGNED_FIELDS: dict[str, tuple[str, ...]] = {
@@ -400,12 +412,15 @@ class Server(socketserver.ThreadingTCPServer):
 
 
 def main() -> int:
+    if "--version" in sys.argv:
+        print(VERSION)
+        return 0
     if not TOKEN:
         # Fail-closed: без токена подпись не проверить, а слушаем мы всю LAN.
         log.error("Токен не найден (%s). Сервер не запущен: без подписи "
                   "команды принимать нельзя. Выполните install-server.sh.", TOKEN_FILE)
         return 2
-    log.info("Старт RFID TCP-сервера на %s:%d", HOST, PORT)
+    log.info("Старт RFID TCP-сервера %s на %s:%d", VERSION, HOST, PORT)
     with Server((HOST, PORT), Handler) as server:
         try:
             server.serve_forever()

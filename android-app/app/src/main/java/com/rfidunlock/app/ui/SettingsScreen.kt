@@ -172,6 +172,14 @@ fun SettingsScreen(
                         "когда системный ZT-туннель недоступен.",
                 style = MaterialTheme.typography.bodySmall,
             )
+
+            // Версия из VERSION в корне репозитория: агент и приложение
+            // выпускаются вместе, номер должен совпадать с `rfid-server.py --version`.
+            HorizontalDivider()
+            Text(
+                "Версия приложения: ${com.rfidunlock.app.BuildConfig.VERSION_NAME}",
+                style = MaterialTheme.typography.bodySmall,
+            )
         }
     }
 }

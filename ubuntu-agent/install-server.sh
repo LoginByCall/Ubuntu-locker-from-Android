@@ -33,6 +33,13 @@ install -m 0755 "$SRC_DIR/rfid-confirm.py" "$BIN_DIR/rfid-confirm.py"
 install -m 0755 "$SRC_DIR/rfid-askpass" "$BIN_DIR/rfid-askpass"
 echo "Установлено подтверждение со смартфона: $BIN_DIR/rfid-askpass"
 
+# 1d. Версия сборки: установленный агент лежит вне репозитория, поэтому
+# номер кладём рядом с его конфигом (rfid-server.py --version читает его).
+if [[ -s "$SRC_DIR/../VERSION" ]]; then
+    install -m 0644 "$SRC_DIR/../VERSION" "$CONF_DIR/version"
+    echo "Версия: $(cat "$CONF_DIR/version")"
+fi
+
 # 2. Токен
 TOKEN_FILE="$CONF_DIR/token"
 if [[ ! -s "$TOKEN_FILE" ]]; then
