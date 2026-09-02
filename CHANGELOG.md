@@ -13,6 +13,15 @@
 
 ## [Не выпущено]
 
+## [1.0.2] — 2026-09-02
+
+### Безопасность
+- Картинка QR-кода профиля (в ней открытым текстом лежит токен ПК) больше не
+  пишется в общий `/tmp` под предсказуемым именем и с правами 644, где её мог
+  прочитать любой локальный пользователь, а сама она жила до перезагрузки.
+  Теперь — `~/.cache/rfid-agent/pc-profile-qr.png`, каталог 700, файл 600.
+  Старую копию из `/tmp` нужно удалить руками: `shred -u /tmp/rfid-pc-profile-qr.png`.
+
 ## [1.0.1] — 2026-09-02
 
 ### Исправлено
@@ -47,6 +56,7 @@
   уходит ни в облачный бэкап, ни в перенос на новый телефон.
 - Лимит одновременных соединений и короткий таймаут чтения у агента.
 
-[Не выпущено]: https://github.com/LoginByCall/Ubuntu-locker-from-Android/compare/v1.0.1...HEAD
+[Не выпущено]: https://github.com/LoginByCall/Ubuntu-locker-from-Android/compare/v1.0.2...HEAD
+[1.0.2]: https://github.com/LoginByCall/Ubuntu-locker-from-Android/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/LoginByCall/Ubuntu-locker-from-Android/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/LoginByCall/Ubuntu-locker-from-Android/releases/tag/v1.0.0

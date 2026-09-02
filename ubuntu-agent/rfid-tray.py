@@ -31,7 +31,6 @@ import os
 import platform
 import socket
 import subprocess
-import tempfile
 import uuid
 from pathlib import Path
 
@@ -199,11 +198,25 @@ def make_qr_image() -> Image.Image:
     return qr.make_image(fill_color="black", back_color="white").convert("RGB")
 
 
+def qr_path() -> Path:
+    """Приватный файл для картинки QR.
+
+    В QR лежит токен, поэтому /tmp не годится: имя предсказуемо, права по
+    umask дают 644, и файл переживает перезагрузку. Держим в своём каталоге
+    кэша с правами 700/600.
+    """
+    cache = Path(os.environ.get("XDG_CACHE_HOME", str(Path.home() / ".cache"))) / "rfid-agent"
+    cache.mkdir(parents=True, exist_ok=True)
+    cache.chmod(0o700)
+    return cache / "pc-profile-qr.png"
+
+
 def show_qr(icon=None, item=None) -> None:
-    """Сохранить QR во временный PNG и открыть в просмотрщике."""
+    """Сохранить QR в приватный PNG и открыть в просмотрщике."""
     img = make_qr_image()
-    path = Path(tempfile.gettempdir()) / "rfid-pc-profile-qr.png"
+    path = qr_path()
     img.save(path)
+    path.chmod(0o600)
     try:
         subprocess.Popen(["xdg-open", str(path)])
     except OSError:

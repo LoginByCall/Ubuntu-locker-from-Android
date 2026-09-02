@@ -316,7 +316,8 @@ for the password as usual (fail-closed).
   git-ignored files. The systemd unit deliberately holds no token — unit files
   are readable by other local users.
 - The token is carried in the QR code when a profile is added — only show that
-  QR code to trusted devices.
+  QR code to trusted devices. The QR image is written to `~/.cache/rfid-agent/`
+  (directory 700, file 600), not to the shared `/tmp`.
 - Confirmations: the push carries only the request id and the text — neither the
   password nor the token — so access to the push service confirms nothing. The
   verdict and the phone’s push token are part of the HMAC signature (flipping

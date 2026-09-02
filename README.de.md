@@ -329,7 +329,8 @@ fragt wie gewohnt nach dem Passwort (fail-closed).
   git-ignorierten Dateien. In der systemd-Unit steht bewusst kein Token —
   Unit-Dateien sind für andere lokale Nutzer lesbar.
 - Beim Hinzufügen eines Profils steckt das Token im QR-Code — zeigen Sie diesen
-  QR-Code nur vertrauenswürdigen Geräten.
+  QR-Code nur vertrauenswürdigen Geräten. Das QR-Bild landet in
+  `~/.cache/rfid-agent/` (Verzeichnis 700, Datei 600), nicht im gemeinsamen `/tmp`.
 - Bestätigungen: im Push stehen nur die Anfrage-ID und der Text — weder Passwort
   noch Token, Zugriff auf den Push-Dienst bestätigt also nichts. Votum und
   Push-Token des Handys gehen in die HMAC-Signatur ein (ein Umbiegen von

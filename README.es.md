@@ -326,7 +326,8 @@ la contraseña como siempre (fail-closed).
   contiene el token a propósito: esos archivos los pueden leer otros usuarios
   locales.
 - El token viaja en el código QR al añadir un perfil — muestre ese QR solo a
-  dispositivos de confianza.
+  dispositivos de confianza. La imagen del QR se escribe en
+  `~/.cache/rfid-agent/` (directorio 700, archivo 600), no en el `/tmp` común.
 - Confirmaciones: en el push solo van el id de la petición y el texto, ni la
   contraseña ni el token, así que el acceso al servicio push no confirma nada. El
   veredicto y el token push del móvil entran en la firma HMAC (cambiar «rechazar»
