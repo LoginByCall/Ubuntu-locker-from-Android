@@ -151,6 +151,15 @@ cd ubuntu-agent
 systemctl --user status rfid-server.service
 ```
 
+**Смена токена** (если он мог утечь): затрите файл и переустановите — новый
+токен сгенерируется автоматически. После этого на каждом телефоне нужно заново
+отсканировать QR-код, иначе команды будут отвергаться как `unauthorized`.
+
+```bash
+shred -u ~/.config/rfid-agent/token ~/.cache/rfid-agent/pc-profile-qr.png
+./install-server.sh
+```
+
 ### Настройка ZeroTier (для работы вне LAN)
 
 ПК должен состоять в сети ZeroTier (обычный `zerotier-cli join …`). Чтобы QR

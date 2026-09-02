@@ -161,6 +161,15 @@ token in `~/.config/rfid-agent/token`, creates and starts the
 systemctl --user status rfid-server.service
 ```
 
+**Rotating the token** (if it may have leaked): wipe the file and reinstall — a
+new token is generated automatically. After that every phone has to scan the QR
+code again, otherwise its commands are rejected as `unauthorized`.
+
+```bash
+shred -u ~/.config/rfid-agent/token ~/.cache/rfid-agent/pc-profile-qr.png
+./install-server.sh
+```
+
 ### ZeroTier setup (for use outside the LAN)
 
 The PC has to be a member of a ZeroTier network (the usual `zerotier-cli join …`).

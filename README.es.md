@@ -166,6 +166,15 @@ El script instala el servidor y la bandeja en `~/.local/bin`, genera un token en
 systemctl --user status rfid-server.service
 ```
 
+**Cambiar el token** (si pudo filtrarse): borre el archivo y reinstale; el nuevo
+token se genera solo. Después hay que volver a escanear el código QR en cada
+móvil, si no sus comandos se rechazan como `unauthorized`.
+
+```bash
+shred -u ~/.config/rfid-agent/token ~/.cache/rfid-agent/pc-profile-qr.png
+./install-server.sh
+```
+
 ### Configuración de ZeroTier (para funcionar fuera de la LAN)
 
 El PC debe pertenecer a una red ZeroTier (el habitual `zerotier-cli join …`).

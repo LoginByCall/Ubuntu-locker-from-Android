@@ -168,6 +168,16 @@ startet ihn und richtet den Autostart des Trays ein.
 systemctl --user status rfid-server.service
 ```
 
+**Token wechseln** (falls er abgeflossen sein könnte): Datei löschen und neu
+installieren — ein neues Token entsteht von selbst. Danach muss auf jedem Handy
+der QR-Code erneut gescannt werden, sonst werden dessen Befehle als
+`unauthorized` abgewiesen.
+
+```bash
+shred -u ~/.config/rfid-agent/token ~/.cache/rfid-agent/pc-profile-qr.png
+./install-server.sh
+```
+
 ### ZeroTier einrichten (für den Betrieb außerhalb des LAN)
 
 Der PC muss Mitglied eines ZeroTier-Netzes sein (das übliche
