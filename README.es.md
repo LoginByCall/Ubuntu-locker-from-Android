@@ -319,15 +319,29 @@ root (poder editar archivos del directorio personal no debe dar root), copia
 auth sufficient pam_exec.so quiet /usr/local/bin/rfid-pam-confirm
 ```
 
-Compruébelo en otra terminal con `sudo -k; sudo true`: la petición aparece en el
-móvil. Funciona: `sudo systemctl stop rfid-pam-revert.timer`. No funciona: espere
-diez minutos o ejecute `sudo ubuntu-agent/install-pam.sh --uninstall`. Después
-borre la contraseña (`secret-tool clear service rfid-agent user "$USER"`) y las
-líneas `SUDO_ASKPASS`/`alias sudo` de `~/.zshrc`.
+A partir de ahí `sudo` funciona como una **carrera**: la petición sale al móvil
+de inmediato y en la terminal aparece
 
-Un rechazo o un tiempo agotado no debilitan nada: la pila sigue y `sudo` pide la
-contraseña como siempre. Pero con `sufficient` el móvil pasa a ser el **único**
-factor; si quiere los dos, cambie `sufficient` por `required`.
+```
+sudo: apt-get update
+Confirme en el móvil o pulse cualquier tecla para escribir la contraseña:
+```
+
+Pulse el botón del móvil y `sudo` le deja pasar sin pedir contraseña. Pulse una
+tecla y la petición del móvil se retira y se abre el aviso normal de contraseña.
+Un rechazo o un tiempo agotado llevan al mismo sitio: esta línea no puede
+debilitar `sudo`.
+
+Compruébelo en otra terminal con `sudo -k; sudo true`. Funciona:
+`sudo systemctl stop rfid-pam-revert.timer`. No funciona: espere diez minutos o
+ejecute `sudo ubuntu-agent/install-pam.sh --uninstall`. Después borre la
+contraseña (`secret-tool clear service rfid-agent user "$USER"`) y las líneas
+`SUDO_ASKPASS`/`alias sudo` de `~/.zshrc`: ahora la contraseña se escribe a mano
+y no se guarda en ningún sitio.
+
+Con franqueza sobre la robustez: sigue siendo **un** factor, vale cualquiera de
+las dos respuestas. La ganancia es que la contraseña ya no está ni en disco ni en
+el llavero. Si quiere los dos factores, cambie `sufficient` por `required`.
 
 **Para cualquier otra cosa** — el mismo mecanismo sin contraseña:
 

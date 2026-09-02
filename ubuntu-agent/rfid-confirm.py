@@ -211,6 +211,60 @@ def race_local_and_phone(prompt: str, timeout_s: int) -> tuple[str, str]:
             local.close()
 
 
+def race_phone_and_keypress(prompt: str, timeout_s: int) -> bool:
+    """Гонка для PAM: телефон против клавиши в терминале.
+
+    Пароль здесь не читается и нигде не хранится — им займётся сам PAM.
+    Подтвердили на телефоне → True (аутентификация пройдена). Нажали клавишу
+    («буду вводить пароль»), отказали или вышло время → False, и PAM идёт
+    дальше по стеку к обычному вводу пароля.
+    """
+    ask_id = str(uuid.uuid4())
+    answers: queue.Queue = queue.Queue()
+    threading.Thread(target=lambda: answers.put(ask(prompt, timeout_s, ask_id)),
+                     daemon=True).start()
+    saved = None
+    try:
+        tty = os.open("/dev/tty", os.O_RDWR | os.O_NOCTTY)
+    except OSError:
+        tty = None  # без терминала (GUI, cron) остаётся только телефон
+    else:
+        # Без ICANON терминал отдаёт символ сразу — иначе «любая клавиша»
+        # не сработала бы до Enter. ECHO гасим, чтобы случайный символ не
+        # остался на экране. Прежние настройки возвращаем в finally.
+        saved = termios.tcgetattr(tty)
+        raw = termios.tcgetattr(tty)
+        raw[3] &= ~(termios.ICANON | termios.ECHO)  # lflag
+        termios.tcsetattr(tty, termios.TCSADRAIN, raw)
+        os.write(tty, f"{prompt}\nПодтвердите на телефоне или нажмите любую "
+                      "клавишу, чтобы ввести пароль: ".encode("utf-8"))
+    try:
+        deadline = time.time() + timeout_s
+        while time.time() < deadline:
+            if not answers.empty():
+                ok, detail = answers.get()
+                if tty is not None:
+                    os.write(tty, ("\nПодтверждено с телефона.\n" if ok
+                                   else f"\nТелефон: {detail}\n").encode("utf-8"))
+                return ok
+            if tty is None:
+                time.sleep(0.1)
+                continue
+            ready, _, _ = select.select([tty], [], [], 0.1)
+            if ready:
+                os.read(tty, 1)  # символ не нужен: пароль спросит сам PAM
+                os.write(tty, b"\n")
+                cancel_ask(ask_id)  # телефон больше не нужен
+                return False
+        cancel_ask(ask_id)
+        return False
+    finally:
+        if tty is not None:
+            if saved is not None:
+                termios.tcsetattr(tty, termios.TCSADRAIN, saved)
+            os.close(tty)
+
+
 def sudo_prompt() -> str:
     """Что именно подтверждаем: команду берём у родителя — это сам sudo.
 
@@ -254,12 +308,18 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Подтверждение действия со смартфона")
     parser.add_argument("prompt", nargs="?", default="", help="текст на экране телефона")
     parser.add_argument("-t", "--timeout", type=int, default=60, help="секунд на ответ")
+    parser.add_argument("--pam", action="store_true",
+                        help="режим PAM: гонка «телефон против клавиши», без пароля")
     parser.add_argument("--password", action="store_true",
                         help="при подтверждении напечатать пароль sudo (режим SUDO_ASKPASS)")
     args = parser.parse_args()
 
-    prompt = args.prompt or (sudo_prompt() if args.password else "") \
+    prompt = args.prompt or (sudo_prompt() if args.password or args.pam else "") \
         or "Подтвердить действие?"
+
+    if args.pam:
+        # Пароля не касаемся: подтвердил телефон — код 0, иначе PAM спросит сам.
+        return 0 if race_phone_and_keypress(prompt, args.timeout) else 1
 
     if args.password:
         # Гонка: что быстрее — руки на клавиатуре или кнопка на телефоне.

@@ -311,16 +311,30 @@ up `/etc/pam.d/sudo`, arms a **10-minute auto-revert timer** and adds the line:
 auth sufficient pam_exec.so quiet /usr/local/bin/rfid-pam-confirm
 ```
 
-Check it in another terminal with `sudo -k; sudo true` — the request shows up on
-the phone. Works: `sudo systemctl stop rfid-pam-revert.timer`. Doesn’t: wait ten
-minutes or run `sudo ubuntu-agent/install-pam.sh --uninstall`. Afterwards drop
-the password (`secret-tool clear service rfid-agent user "$USER"`) and the
-`SUDO_ASKPASS`/`alias sudo` lines from `~/.zshrc`.
+From then on `sudo` runs a **race**: the request goes to the phone immediately,
+while the terminal shows
 
-A rejection or a timeout weakens nothing: the stack continues and `sudo` asks for
-the password as usual. But with `sufficient` the phone becomes the **only** factor
-for `sudo`; if you want both, replace `sufficient` with `required` and the phone
-is asked in addition to the password.
+```
+sudo: apt-get update
+Confirm on the phone or press any key to type the password:
+```
+
+Press the button on the phone and `sudo` lets you in with no password asked.
+Press any key and the phone request is withdrawn and the usual password prompt
+opens. A rejection or a timeout leads to the same place: this line cannot weaken
+`sudo`.
+
+Check it in another terminal with `sudo -k; sudo true`. Works:
+`sudo systemctl stop rfid-pam-revert.timer`. Doesn’t: wait ten minutes or run
+`sudo ubuntu-agent/install-pam.sh --uninstall`. Afterwards drop the password
+(`secret-tool clear service rfid-agent user "$USER"`) and the
+`SUDO_ASKPASS`/`alias sudo` lines from `~/.zshrc` — the password is typed by hand
+now and stored nowhere.
+
+Honestly about the strength: this is still **one** factor — either answer will
+do. The win is that the password no longer sits on disk or in the keyring. If you
+want both factors, replace `sufficient` with `required`: the phone is then asked
+in addition to the password rather than instead of it.
 
 **For anything else** — the same mechanism without a password:
 

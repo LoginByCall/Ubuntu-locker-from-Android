@@ -325,17 +325,30 @@ und fügt die Zeile ein:
 auth sufficient pam_exec.so quiet /usr/local/bin/rfid-pam-confirm
 ```
 
-Prüfen Sie es in einem zweiten Terminal mit `sudo -k; sudo true` — die Anfrage
-erscheint auf dem Handy. Klappt: `sudo systemctl stop rfid-pam-revert.timer`.
-Klappt nicht: zehn Minuten warten oder
-`sudo ubuntu-agent/install-pam.sh --uninstall`. Danach das Passwort löschen
-(`secret-tool clear service rfid-agent user "$USER"`) und die Zeilen
-`SUDO_ASKPASS`/`alias sudo` aus `~/.zshrc` entfernen.
+Danach läuft `sudo` als **Wettlauf**: die Anfrage geht sofort ans Handy, im
+Terminal erscheint
 
-Ablehnung oder Timeout schwächen nichts: der Stack läuft weiter und `sudo` fragt
-wie gewohnt nach dem Passwort. Mit `sufficient` wird das Handy allerdings zum
-**einzigen** Faktor; sollen es beide sein, ersetzen Sie `sufficient` durch
-`required`.
+```
+sudo: apt-get update
+Am Handy bestätigen oder eine Taste drücken, um das Passwort einzugeben:
+```
+
+Knopf am Handy — `sudo` lässt durch, ganz ohne Passwortfrage. Taste gedrückt —
+die Anfrage am Handy wird zurückgezogen und die gewohnte Passwortabfrage
+erscheint. Ablehnung und Timeout führen an dieselbe Stelle: schwächen kann diese
+Zeile `sudo` nicht.
+
+Prüfen Sie es in einem zweiten Terminal mit `sudo -k; sudo true`. Klappt:
+`sudo systemctl stop rfid-pam-revert.timer`. Klappt nicht: zehn Minuten warten
+oder `sudo ubuntu-agent/install-pam.sh --uninstall`. Danach das Passwort löschen
+(`secret-tool clear service rfid-agent user "$USER"`) und die Zeilen
+`SUDO_ASKPASS`/`alias sudo` aus `~/.zshrc` entfernen — das Passwort wird jetzt
+von Hand eingegeben und nirgends gespeichert.
+
+Ehrlich zur Stärke: es bleibt **ein** Faktor, es genügt eine der beiden
+Antworten. Der Gewinn ist, dass das Passwort weder auf der Platte noch im
+Schlüsselbund liegt. Sollen es beide Faktoren sein, ersetzen Sie `sufficient`
+durch `required`.
 
 **Für alles andere** — derselbe Mechanismus ohne Passwort:
 

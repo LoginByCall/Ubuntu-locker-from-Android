@@ -128,6 +128,51 @@ pushed.clear()
 code, stdout = run_askpass_gui("#!/bin/sh\nsleep 60; echo поздно\n", verdict="approve")
 assert code == 0 and stdout.strip() == "пароль-для-теста", (code, stdout)
 
+def run_pam_pty(typed: str | None, verdict: str | None) -> tuple[int, str]:
+    """Режим --pam на псевдотерминале: пароль не участвует вообще."""
+    out = conf.parent / "pam-out.txt"
+    out.write_text("")
+    env = {**os.environ, "PATH": f"{stub_bin}:{os.environ['PATH']}", "RFID_PORT": PORT}
+    pid, master = pty.fork()
+    if pid == 0:
+        fd = os.open(str(out), os.O_WRONLY | os.O_CREAT | os.O_TRUNC)
+        os.dup2(fd, 1)
+        os.execve(sys.executable, [sys.executable, "rfid-confirm.py", "--pam",
+                                   "sudo: apt update", "-t", "20"], env)
+    if verdict:
+        threading.Thread(target=answer, args=(verdict,), daemon=True).start()
+    if typed is not None:
+        time.sleep(1.5)  # дать хелперу поднять приглашение
+        os.write(master, typed.encode())
+    _, status = os.waitpid(pid, 0)
+    os.close(master)
+    return os.waitstatus_to_exitcode(status), out.read_text()
+
+
+# 7. PAM: телефон подтвердил — аутентификация пройдена, пароль не печатается.
+pushed.clear()
+code, stdout = run_pam_pty(typed=None, verdict="approve")
+assert code == 0, (code, stdout)
+assert "пароль-для-теста" not in stdout, "в режиме --pam пароль печататься не должен"
+
+# 8. PAM: нажали клавишу — уходим к обычному вводу пароля (ненулевой код),
+# запрос на телефоне при этом снимается. Время проверяем специально: раньше
+# тест проходил по таймауту в 20 с, не заметив, что клавиша не сработала
+# (терминал в каноническом режиме отдаёт ввод только по Enter).
+pushed.clear()
+started = time.time()
+code, stdout = run_pam_pty(typed="x", verdict=None)   # без перевода строки!
+elapsed = time.time() - started
+assert code == 1, (code, stdout)
+assert elapsed < 10, f"клавиша не прервала ожидание: {elapsed:.1f} с"
+assert "пароль-для-теста" not in stdout
+
+# 9. PAM: телефон отказал — тоже к паролю.
+pushed.clear()
+code, stdout = run_pam_pty(typed=None, verdict="deny")
+assert code == 1, (code, stdout)
+
 print("OK: rfid-askpass отдаёт пароль только после подтверждения")
 print("OK: гонка терминал/телефон — выигрывает тот, кто ответил первым")
 print("OK: без терминала гонка идёт между окном (zenity) и телефоном")
+print("OK: режим --pam: телефон против клавиши, пароль не участвует")
