@@ -102,6 +102,8 @@ ubuntu-agent/     PC-Agent: TCP-Server, Tray, Installer
   rfid-tray.py      Tray mit Profil-QR-Code, Symbol und Eintrag im Programmmenü
   rfid-confirm.py   Bestätigung einer Aktion am Handy (Rückgabecode 0/1/2)
   rfid-askpass      SUDO_ASKPASS-Wrapper um rfid-confirm.py
+  rfid-pam-confirm  PAM-Helfer: sudo ohne Passwort, per Bestätigung am Handy
+  install-pam.sh    installiert die PAM-Variante (mit Backup und Auto-Rollback)
   install-server.sh installiert Server und Tray als User-Service
   test_auth.py      Regressionstest der HMAC-Authentifizierung
   test_confirm.py   Regressionstest des ask/confirm-Ablaufs
@@ -303,6 +305,37 @@ Schlüsselbund genutzt wird: `~/.config/rfid-agent/sudo.pass` (chmod 600).
 export SUDO_ASKPASS="$HOME/.local/bin/rfid-askpass"
 alias sudo='sudo -A'
 ```
+
+### Ganz ohne gespeichertes Passwort: PAM
+
+Das obige Verfahren gibt ein Passwort aus dem Schlüsselbund aus. Man kann ganz
+darauf verzichten und die Bestätigung an PAM hängen: `sudo` lässt dann per
+Knopfdruck am Handy durch, und nirgends liegt ein Passwort:
+
+```bash
+sudo ubuntu-agent/install-pam.sh
+```
+
+Das Skript legt Helfer und eine Kopie von `rfid-confirm.py` in root-eigene
+Verzeichnisse (wer Dateien im Home ändern darf, darf damit nicht root werden),
+sichert `/etc/pam.d/sudo`, stellt einen **Auto-Rollback-Timer auf 10 Minuten**
+und fügt die Zeile ein:
+
+```
+auth sufficient pam_exec.so quiet /usr/local/bin/rfid-pam-confirm
+```
+
+Prüfen Sie es in einem zweiten Terminal mit `sudo -k; sudo true` — die Anfrage
+erscheint auf dem Handy. Klappt: `sudo systemctl stop rfid-pam-revert.timer`.
+Klappt nicht: zehn Minuten warten oder
+`sudo ubuntu-agent/install-pam.sh --uninstall`. Danach das Passwort löschen
+(`secret-tool clear service rfid-agent user "$USER"`) und die Zeilen
+`SUDO_ASKPASS`/`alias sudo` aus `~/.zshrc` entfernen.
+
+Ablehnung oder Timeout schwächen nichts: der Stack läuft weiter und `sudo` fragt
+wie gewohnt nach dem Passwort. Mit `sufficient` wird das Handy allerdings zum
+**einzigen** Faktor; sollen es beide sein, ersetzen Sie `sufficient` durch
+`required`.
 
 **Für alles andere** — derselbe Mechanismus ohne Passwort:
 

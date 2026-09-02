@@ -101,6 +101,8 @@ ubuntu-agent/     Agente del PC: servidor TCP, bandeja, instaladores
   rfid-tray.py      bandeja con el QR del perfil, icono y entrada en el menú
   rfid-confirm.py   confirmación de una acción en el móvil (código 0/1/2)
   rfid-askpass      envoltorio SUDO_ASKPASS sobre rfid-confirm.py
+  rfid-pam-confirm  ayudante PAM: sudo sin contraseña, confirmado en el móvil
+  install-pam.sh    instala la variante PAM (con copia y reversión automática)
   install-server.sh instala servidor y bandeja como servicio de usuario
   test_auth.py      prueba de regresión de la autenticación HMAC
   test_confirm.py   prueba de regresión del flujo ask/confirm
@@ -298,6 +300,34 @@ un secreto vacío. Como alternativa, si no usa llavero:
 export SUDO_ASKPASS="$HOME/.local/bin/rfid-askpass"
 alias sudo='sudo -A'
 ```
+
+### Sin guardar contraseña: PAM
+
+El esquema anterior imprime una contraseña del llavero. Se puede prescindir de
+ella y colgar la confirmación de PAM: entonces `sudo` deja pasar con el botón del
+móvil y la contraseña no se guarda en ninguna parte:
+
+```bash
+sudo ubuntu-agent/install-pam.sh
+```
+
+El script coloca el ayudante y una copia de `rfid-confirm.py` en directorios de
+root (poder editar archivos del directorio personal no debe dar root), copia
+`/etc/pam.d/sudo`, arma un **temporizador de reversión a 10 minutos** y añade:
+
+```
+auth sufficient pam_exec.so quiet /usr/local/bin/rfid-pam-confirm
+```
+
+Compruébelo en otra terminal con `sudo -k; sudo true`: la petición aparece en el
+móvil. Funciona: `sudo systemctl stop rfid-pam-revert.timer`. No funciona: espere
+diez minutos o ejecute `sudo ubuntu-agent/install-pam.sh --uninstall`. Después
+borre la contraseña (`secret-tool clear service rfid-agent user "$USER"`) y las
+líneas `SUDO_ASKPASS`/`alias sudo` de `~/.zshrc`.
+
+Un rechazo o un tiempo agotado no debilitan nada: la pila sigue y `sudo` pide la
+contraseña como siempre. Pero con `sufficient` el móvil pasa a ser el **único**
+factor; si quiere los dos, cambie `sufficient` por `required`.
 
 **Para cualquier otra cosa** — el mismo mecanismo sin contraseña:
 

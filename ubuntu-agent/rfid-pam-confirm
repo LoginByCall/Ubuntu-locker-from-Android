@@ -1,0 +1,39 @@
+#!/bin/sh
+#
+# rfid-pam-confirm — PAM-хелпер: спросить подтверждение на смартфоне.
+#
+# Вызывается из /etc/pam.d/sudo строкой
+#   auth sufficient pam_exec.so quiet /usr/local/bin/rfid-pam-confirm
+# и работает от root на стадии аутентификации. Код 0 = «подтверждено», и для
+# `sufficient` это успех аутентификации: пароль не спрашивается и нигде не
+# хранится. Любой другой код — стек продолжается обычным образом (пароль).
+#
+# Устанавливается install-pam.sh; всё исполняемое лежит в root-owned каталогах,
+# чтобы правка файлов в домашнем каталоге не превращалась в root.
+set -eu
+
+# Кто вызвал sudo. PAM_RUSER ставит сам sudo; без него спрашивать некого.
+CALLER="${PAM_RUSER:-}"
+[ -n "$CALLER" ] || exit 1
+[ "$CALLER" != "root" ] || exit 1  # root и так root — телефон ни при чём
+
+HOME_DIR="$(getent passwd "$CALLER" | cut -d: -f6)"
+[ -n "$HOME_DIR" ] || exit 1
+# Нет токена — агент не настроен, подтверждать нечем.
+[ -r "$HOME_DIR/.config/rfid-agent/token" ] || exit 1
+
+# Что подтверждаем: родитель этого процесса — сам sudo, у него в аргументах
+# видна команда пользователя. Своей команды PAM хелперу не сообщает.
+PROMPT="$(tr '\0' ' ' < "/proc/$PPID/cmdline" 2>/dev/null || true)"
+case "$PROMPT" in
+    sudo|sudo\ *|*/sudo|*/sudo\ *) ;;   # родитель и правда sudo — показываем команду
+    *) PROMPT="sudo" ;;                  # иначе не тащим на телефон случайную строку
+esac
+PROMPT="$(printf '%.120s' "$PROMPT")"    # в push уходит короткий текст, не портянка
+
+exec env -i \
+    PATH=/usr/bin:/bin \
+    HOME="$HOME_DIR" \
+    XDG_CONFIG_HOME="$HOME_DIR/.config" \
+    /usr/bin/python3 /usr/local/lib/rfid-agent/rfid-confirm.py "$PROMPT" -t 30 \
+    >/dev/null 2>&1

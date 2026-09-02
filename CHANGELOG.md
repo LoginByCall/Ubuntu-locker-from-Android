@@ -13,6 +13,17 @@
 
 ## [Не выпущено]
 
+## [1.1.0] — 2026-09-02
+
+### Добавлено
+- Подтверждение `sudo` телефоном **через PAM** — вариант, в котором пароль не
+  хранится вообще: `ubuntu-agent/install-pam.sh` добавляет в `/etc/pam.d/sudo`
+  строку `auth sufficient pam_exec.so quiet /usr/local/bin/rfid-pam-confirm`.
+  Установщик делает бэкап файла и ставит таймер автоотката на 10 минут, есть
+  `--uninstall`. Исполняемое кладётся в root-owned каталоги: право править
+  файлы в домашнем каталоге не должно означать право стать root.
+  Отказ или таймаут не ослабляют ничего — стек идёт дальше к паролю.
+
 ## [1.0.3] — 2026-09-02
 
 ### Безопасность
@@ -76,7 +87,8 @@
   уходит ни в облачный бэкап, ни в перенос на новый телефон.
 - Лимит одновременных соединений и короткий таймаут чтения у агента.
 
-[Не выпущено]: https://github.com/LoginByCall/Ubuntu-locker-from-Android/compare/v1.0.3...HEAD
+[Не выпущено]: https://github.com/LoginByCall/Ubuntu-locker-from-Android/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/LoginByCall/Ubuntu-locker-from-Android/compare/v1.0.3...v1.1.0
 [1.0.3]: https://github.com/LoginByCall/Ubuntu-locker-from-Android/compare/v1.0.2...v1.0.3
 [1.0.2]: https://github.com/LoginByCall/Ubuntu-locker-from-Android/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/LoginByCall/Ubuntu-locker-from-Android/compare/v1.0.0...v1.0.1

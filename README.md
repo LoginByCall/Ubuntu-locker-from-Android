@@ -87,6 +87,8 @@ ubuntu-agent/     ПК-агент: TCP-сервер, трей, установщ�
   rfid-tray.py      трей с QR-кодом профиля, иконка и пункт в списке программ
   rfid-confirm.py   подтверждение действия на смартфоне (код возврата 0/1/2)
   rfid-askpass      обёртка SUDO_ASKPASS поверх rfid-confirm.py
+  rfid-pam-confirm  PAM-хелпер: sudo без пароля, по подтверждению с телефона
+  install-pam.sh    установка PAM-варианта (с бэкапом и автооткатом)
   install-server.sh установка сервера+трея как user-сервиса
   test_auth.py      регрессионный тест HMAC-аутентификации
   test_confirm.py   регрессионный тест потока ask/confirm
@@ -275,6 +277,35 @@ secret-tool store --label="sudo" service rfid-agent user "$USER"
 export SUDO_ASKPASS="$HOME/.local/bin/rfid-askpass"
 alias sudo='sudo -A'
 ```
+
+### Вариант без хранения пароля: PAM
+
+Схема выше печатает пароль из связки ключей. Можно обойтись вообще без него —
+повесить подтверждение на PAM, тогда `sudo` пускает по кнопке на телефоне, а
+пароля нет ни на диске, ни в связке:
+
+```bash
+sudo ubuntu-agent/install-pam.sh
+```
+
+Скрипт кладёт хелпер и копию `rfid-confirm.py` в root-owned каталоги (правка
+файлов в домашнем каталоге не должна давать root), делает бэкап
+`/etc/pam.d/sudo`, ставит **таймер автоотката на 10 минут** и добавляет строку:
+
+```
+auth sufficient pam_exec.so quiet /usr/local/bin/rfid-pam-confirm
+```
+
+Проверьте в соседнем терминале `sudo -k; sudo true` — на телефоне появится
+запрос. Работает: `sudo systemctl stop rfid-pam-revert.timer`. Нет: подождите
+10 минут или `sudo ubuntu-agent/install-pam.sh --uninstall`. После проверки
+уберите пароль (`secret-tool clear service rfid-agent user "$USER"`) и строки
+`SUDO_ASKPASS`/`alias sudo` из `~/.zshrc`.
+
+Отказ и таймаут ничего не ослабляют: стек идёт дальше и `sudo` спрашивает
+пароль как обычно. Но при `sufficient` телефон становится **единственным**
+фактором для `sudo`; нужны оба — замените `sufficient` на `required`, и тогда
+телефон спрашивается вдобавок к паролю.
 
 **Для чего угодно ещё** — тот же механизм без пароля:
 

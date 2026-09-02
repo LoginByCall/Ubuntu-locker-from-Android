@@ -97,6 +97,8 @@ ubuntu-agent/     PC agent: TCP server, tray, installers
   rfid-tray.py      tray with the profile QR code, icon and app-list entry
   rfid-confirm.py   confirming an action on the phone (exit code 0/1/2)
   rfid-askpass      SUDO_ASKPASS wrapper around rfid-confirm.py
+  rfid-pam-confirm  PAM helper: sudo without a password, confirmed on the phone
+  install-pam.sh    installs the PAM variant (with backup and auto-revert)
   install-server.sh installs server+tray as a user service
   test_auth.py      regression test for HMAC authentication
   test_confirm.py   regression test for the ask/confirm flow
@@ -290,6 +292,35 @@ empty secret. Alternatively, if you do not use a keyring:
 export SUDO_ASKPASS="$HOME/.local/bin/rfid-askpass"
 alias sudo='sudo -A'
 ```
+
+### Storing no password at all: PAM
+
+The scheme above prints a password from the keyring. You can drop the password
+entirely and hook the confirmation into PAM instead — `sudo` then lets you in on
+a button press, and no password is stored anywhere:
+
+```bash
+sudo ubuntu-agent/install-pam.sh
+```
+
+The script puts the helper and a copy of `rfid-confirm.py` into root-owned
+directories (being able to edit files in your home must not grant root), backs
+up `/etc/pam.d/sudo`, arms a **10-minute auto-revert timer** and adds the line:
+
+```
+auth sufficient pam_exec.so quiet /usr/local/bin/rfid-pam-confirm
+```
+
+Check it in another terminal with `sudo -k; sudo true` — the request shows up on
+the phone. Works: `sudo systemctl stop rfid-pam-revert.timer`. Doesn’t: wait ten
+minutes or run `sudo ubuntu-agent/install-pam.sh --uninstall`. Afterwards drop
+the password (`secret-tool clear service rfid-agent user "$USER"`) and the
+`SUDO_ASKPASS`/`alias sudo` lines from `~/.zshrc`.
+
+A rejection or a timeout weakens nothing: the stack continues and `sudo` asks for
+the password as usual. But with `sufficient` the phone becomes the **only** factor
+for `sudo`; if you want both, replace `sufficient` with `required` and the phone
+is asked in addition to the password.
 
 **For anything else** — the same mechanism without a password:
 
