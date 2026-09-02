@@ -13,6 +13,26 @@
 
 ## [Не выпущено]
 
+## [1.0.3] — 2026-09-02
+
+### Безопасность
+- Удалён путь первой версии через GSConnect (`install.sh`, `rfid-agent.sh`):
+  зарегистрированная в GSConnect команда разблокировала ПК в обход токена и
+  HMAC-подписи — защита сводилась к парности GSConnect. На уже настроенных ПК
+  команды `RFID Unlock`/`RFID Lock` и файл `~/.local/bin/rfid-agent` нужно
+  удалить руками (в GSConnect: Настройки устройства → «Команды»).
+
+### Добавлено
+- Пункт «RFID Unlock» в списке программ со своей иконкой (рисуется самим треем,
+  `rfid-tray.py --write-icon`, картинки в репозитории нет).
+
+### Исправлено
+- Трей больше не запускается вторым экземпляром: захват абстрактного
+  unix-сокета по uid, замок снимается вместе с процессом. Раньше каждый запуск
+  `install-server.sh` добавлял ещё одну иконку в трей.
+- `install-server.sh` останавливает прежний трей перед запуском нового —
+  иначе после обновления продолжал работать старый код.
+
 ## [1.0.2] — 2026-09-02
 
 ### Безопасность
@@ -56,7 +76,8 @@
   уходит ни в облачный бэкап, ни в перенос на новый телефон.
 - Лимит одновременных соединений и короткий таймаут чтения у агента.
 
-[Не выпущено]: https://github.com/LoginByCall/Ubuntu-locker-from-Android/compare/v1.0.2...HEAD
+[Не выпущено]: https://github.com/LoginByCall/Ubuntu-locker-from-Android/compare/v1.0.3...HEAD
+[1.0.3]: https://github.com/LoginByCall/Ubuntu-locker-from-Android/compare/v1.0.2...v1.0.3
 [1.0.2]: https://github.com/LoginByCall/Ubuntu-locker-from-Android/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/LoginByCall/Ubuntu-locker-from-Android/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/LoginByCall/Ubuntu-locker-from-Android/releases/tag/v1.0.0

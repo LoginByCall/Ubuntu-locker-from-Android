@@ -31,6 +31,7 @@ import os
 import platform
 import socket
 import subprocess
+import sys
 import uuid
 from pathlib import Path
 
@@ -223,19 +224,52 @@ def show_qr(icon=None, item=None) -> None:
         img.show()
 
 
-def tray_icon_image() -> Image.Image:
-    """Простая иконка трея: замок на сплошном фоне."""
-    size = 64
+def tray_icon_image(size: int = 64) -> Image.Image:
+    """Замок на сплошном фоне: иконка трея и она же — иконка в списке программ.
+
+    Рисуется, а не лежит файлом в репозитории: одна картинка на оба места и
+    ничего не надо пересобирать при смене размера.
+    """
+    k = size / 64  # пропорции подобраны для 64 px
     img = Image.new("RGB", (size, size), "#1565C0")
     d = ImageDraw.Draw(img)
     # тело замка
-    d.rectangle([18, 30, 46, 52], fill="white")
+    d.rectangle([18 * k, 30 * k, 46 * k, 52 * k], fill="white")
     # дужка
-    d.arc([20, 12, 44, 40], start=180, end=360, fill="white", width=4)
+    d.arc([20 * k, 12 * k, 44 * k, 40 * k], start=180, end=360,
+          fill="white", width=max(1, round(4 * k)))
     return img
 
 
+def acquire_single_instance() -> socket.socket | None:
+    """Занять право быть единственным треем этого пользователя.
+
+    Абстрактный unix-сокет (имя с ведущим \0) существует ровно столько,
+    сколько живёт процесс: после kill -9 или падения не остаётся замка,
+    который пришлось бы чистить руками. Имя с uid — чтобы у разных
+    пользователей на одной машине были свои треи.
+    """
+    lock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+    try:
+        lock.bind("\0rfid-agent-tray-%d" % os.getuid())
+    except OSError:
+        return None  # адрес занят — трей уже работает
+    return lock
+
+
 def main() -> int:
+    # Иконка для списка программ: установщик просит нарисовать PNG и выходит.
+    if "--write-icon" in sys.argv:
+        target = Path(sys.argv[sys.argv.index("--write-icon") + 1])
+        target.parent.mkdir(parents=True, exist_ok=True)
+        tray_icon_image(256).save(target)
+        return 0
+
+    lock = acquire_single_instance()
+    if lock is None:
+        print("Трей уже запущен — второй экземпляр не нужен.")
+        return 0
+
     icon = pystray.Icon(
         "rfid-agent",
         icon=tray_icon_image(),

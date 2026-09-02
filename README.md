@@ -84,7 +84,7 @@ android-app/      Android-приложение (Kotlin/Compose)
   …/confirm/        подтверждение действий на ПК (push + кнопки)
 ubuntu-agent/     ПК-агент: TCP-сервер, трей, установщики
   rfid-server.py    TCP-сервер lock/unlock/status/ask/confirm/register
-  rfid-tray.py      иконка в трее с QR-кодом профиля ПК
+  rfid-tray.py      трей с QR-кодом профиля, иконка и пункт в списке программ
   rfid-confirm.py   подтверждение действия на смартфоне (код возврата 0/1/2)
   rfid-askpass      обёртка SUDO_ASKPASS поверх rfid-confirm.py
   install-server.sh установка сервера+трея как user-сервиса
@@ -92,7 +92,6 @@ ubuntu-agent/     ПК-агент: TCP-сервер, трей, установщ�
   test_confirm.py   регрессионный тест потока ask/confirm
   test_askpass.py   регрессионный тест гонки «терминал/окно ↔ телефон»
   test_lan_reply.py регрессионный тест: status отдаёт LAN-адрес ПК
-  install.sh, rfid-agent.sh  первая версия через GSConnect (legacy)
   yggdrasil/        альтернативный слой (не используется; setup-скрипты)
 tools/bump-version.sh  поднять версию продукта и поставить тег
 VERSION           единый номер версии агента и приложения

@@ -118,21 +118,49 @@ systemctl --user enable rfid-server.service
 systemctl --user restart rfid-server.service
 echo
 
-# 4b. Автозапуск tray-приложения (зависимости поставлены в шаге 2c).
+# 4b. Иконка, пункт в списке программ и автозапуск трея
+# (зависимости поставлены в шаге 2c).
 if [[ -x "$VENV_DIR/bin/python" ]]; then
-    DESKTOP_FILE="$AUTOSTART_DIR/rfid-tray.desktop"
-    cat >"$DESKTOP_FILE" <<EOF
+    # Иконку рисует сам трей — в репозитории картинки нет.
+    ICON_DIR="$HOME/.local/share/icons/hicolor/256x256/apps"
+    ICON_FILE="$ICON_DIR/rfid-agent.png"
+    if "$VENV_DIR/bin/python" "$BIN_DIR/rfid-tray.py" --write-icon "$ICON_FILE"; then
+        ICON_NAME="rfid-agent"
+        echo "Иконка: $ICON_FILE"
+    else
+        ICON_NAME="changes-prevent-symbolic"  # запасной вариант из темы
+    fi
+
+    APPS_DIR="$HOME/.local/share/applications"
+    mkdir -p "$APPS_DIR"
+    # Пункт в списке программ и автозапуск — один и тот же .desktop с точностью
+    # до строки автозапуска, поэтому пишем оба из одного шаблона.
+    for target in "$APPS_DIR/rfid-agent.desktop" "$AUTOSTART_DIR/rfid-tray.desktop"; do
+        cat >"$target" <<EOF
 [Desktop Entry]
 Type=Application
-Name=RFID Unlock — профиль ПК
-Comment=Иконка в трее для показа QR-кода профиля ПК
+Name=RFID Unlock
+GenericName=Профиль ПК для разблокировки по NFC
+Comment=Иконка в трее: QR-код профиля этого ПК
 Exec=$VENV_DIR/bin/python $BIN_DIR/rfid-tray.py
-Icon=changes-prevent-symbolic
+Icon=$ICON_NAME
 Terminal=false
+Categories=Utility;Security;
+Keywords=RFID;NFC;lock;unlock;QR;
+StartupNotify=false
 X-GNOME-Autostart-enabled=true
 EOF
-    echo "Создан автозапуск: $DESKTOP_FILE"
-    # запустить tray сразу (если есть графическая сессия)
+    done
+    echo "Создан пункт в списке программ: $APPS_DIR/rfid-agent.desktop"
+    echo "Создан автозапуск: $AUTOSTART_DIR/rfid-tray.desktop"
+    command -v update-desktop-database >/dev/null && update-desktop-database "$APPS_DIR" 2>/dev/null
+
+    # Перезапуск трея: старый экземпляр остаётся на прежнем коде, а новый
+    # сам откажется стартовать вторым (проверка в rfid-tray.py).
+    if pkill -u "$USER" -f "$BIN_DIR/rfid-tray.py" 2>/dev/null; then
+        echo "Прежний трей остановлен."
+        sleep 1
+    fi
     if [[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]]; then
         nohup "$VENV_DIR/bin/python" "$BIN_DIR/rfid-tray.py" >/dev/null 2>&1 &
         echo "Tray запущен."
