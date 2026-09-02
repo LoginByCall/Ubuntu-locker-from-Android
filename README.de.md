@@ -78,7 +78,9 @@ flowchart LR
   über den eingebauten ZeroTier-Knoten.
 - **Protokoll**: `{"cmd":"lock|unlock|status|ask|confirm|register","reqId":"<uuid>","ts":<Unix-Sek>,
   "sig":"<hex HMAC-SHA256(token, cmd|reqId|ts)>"}` →
-  `{"reqId":"…","status":"ok|error","detail":"…"}`.
+  `{"reqId":"…","status":"ok|error","detail":"…",
+  "sig":"<hex HMAC-SHA256(token, reqId|status|detail|lan)>"}` — auch die Antwort
+  ist signiert und an die `reqId` der Anfrage gebunden.
 
 Der eingebaute Knoten (AAR-Bau, Stolpersteine, Messungen) —
 [Паспорт-libzt.md](Паспорт-libzt.md).
@@ -286,11 +288,20 @@ fragt wie gewohnt nach dem Passwort (fail-closed).
 
 - Befehle werden mit HMAC-SHA256 und einem gemeinsamen Token **signiert**; das
   Token selbst geht nie über das Netz. Wiederholungen wehren ein Zeitfenster
-  (±300 s) und ein Nonce-Cache ab. Regressionstest: `ubuntu-agent/test_auth.py`.
+  (±300 s) und ein Nonce-Cache ab. **Antworten werden mit demselben Token
+  signiert** und sind an die `reqId` der Anfrage gebunden — ein Angreifer auf dem
+  Weg kann weder die Adresse des PCs austauschen noch ein falsches „gesperrt“
+  vortäuschen. Regressionstest: `ubuntu-agent/test_auth.py`.
+- Ohne Token **startet der Server nicht** (fail-closed): das ganze LAN ohne
+  Signaturprüfung abzuhören ist auch „vorübergehend“ nicht erlaubt.
+- App-Daten gehen weder in die Cloud-Sicherung noch in die Übertragung auf ein
+  neues Telefon (`allowBackup="false"` plus `data_extraction_rules.xml`) — die
+  PC-Token liegen im Klartext in Room.
 - Außerhalb des LAN wird der Verkehr zusätzlich von ZeroTier verschlüsselt (E2E).
 - Im Repository liegen keine Geheimnisse: das Token in
   `~/.config/rfid-agent/token` (Rechte 600); echte Adressen der Infrastruktur in
-  git-ignorierten Dateien.
+  git-ignorierten Dateien. In der systemd-Unit steht bewusst kein Token —
+  Unit-Dateien sind für andere lokale Nutzer lesbar.
 - Beim Hinzufügen eines Profils steckt das Token im QR-Code — zeigen Sie diesen
   QR-Code nur vertrauenswürdigen Geräten.
 - Bestätigungen: im Push stehen nur die Anfrage-ID und der Text — weder Passwort

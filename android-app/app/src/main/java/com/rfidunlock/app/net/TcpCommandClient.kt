@@ -13,6 +13,7 @@ import java.io.OutputStream
 import java.net.InetSocketAddress
 import java.net.NetworkInterface
 import java.net.Socket
+import java.security.MessageDigest
 import java.util.UUID
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
@@ -34,7 +35,9 @@ data class CommandResult(
  *
  * Аутентификация (этап 2, ТЗ 7.2): токен по сети не передаётся — команда
  * подписывается HMAC-SHA256(token, "cmd|reqId|ts"), сервер проверяет окно
- * времени и уникальность reqId (анти-replay).
+ * времени и уникальность reqId (анти-replay). Ответ сервер подписывает так же
+ * ("reqId|status|detail|lan"), клиент проверяет — иначе посредник мог бы
+ * подменить адрес ПК или показать ложный статус замка.
  * БЕЗОПАСНОСТЬ: криптографическая часть требует ревью человеком.
  */
 class TcpCommandClient {
@@ -119,7 +122,8 @@ class TcpCommandClient {
                 socket.connect(InetSocketAddress(lan, settings.port), lanConnectTimeoutMs)
                 socket.soTimeout = readTimeoutMs
                 Log.i(tag, "$cmd -> $lan (транспорт: lan)")
-                exchange(socket.getInputStream(), socket.getOutputStream(), cmd, reqId, request)
+                exchange(socket.getInputStream(), socket.getOutputStream(),
+                    cmd, reqId, request, settings.token)
             }
         }.getOrElse {
             Log.i(tag, "LAN-путь недоступен ($lan): ${it.message}")
@@ -152,7 +156,8 @@ class TcpCommandClient {
         Socket().use { socket ->
             socket.connect(InetSocketAddress(settings.host, settings.port), connectTimeoutMs)
             socket.soTimeout = readTimeoutMs
-            exchange(socket.getInputStream(), socket.getOutputStream(), cmd, reqId, request)
+            exchange(socket.getInputStream(), socket.getOutputStream(),
+                    cmd, reqId, request, settings.token)
         }
 
     private suspend fun sendViaEmbeddedZt(
@@ -173,7 +178,8 @@ class TcpCommandClient {
                     val socket = ZeroTierSocket(settings.host, settings.port)
                     try {
                         socket.setSoTimeout(readTimeoutMs)
-                        return exchange(socket.inputStream, socket.outputStream, cmd, reqId, request)
+                        return exchange(socket.inputStream, socket.outputStream,
+                            cmd, reqId, request, settings.token)
                     } finally {
                         socket.close()
                     }
@@ -189,16 +195,31 @@ class TcpCommandClient {
     }
 
     private fun exchange(
-        input: InputStream, output: OutputStream, cmd: String, reqId: String, request: String,
+        input: InputStream, output: OutputStream, cmd: String, reqId: String,
+        request: String, token: String,
     ): CommandResult {
         writeLine(output, request)
         val reader = BufferedReader(InputStreamReader(input))
         val responseLine = reader.readLine() ?: return CommandResult(false, "нет ответа")
         val json = JSONObject(responseLine)
-        val ok = json.optString("status") == "ok"
+        val status = json.optString("status")
         val detail = json.optString("detail")
-        Log.i(tag, "$cmd reqId=$reqId -> ${json.optString("status")} ($detail)")
-        return CommandResult(ok, detail, json.optString("lan").trim())
+        val lan = json.optString("lan").trim()
+        // Ответ подписан тем же токеном и привязан к нашему reqId: иначе
+        // посредник в общей сети подсунул бы чужой "lan" или ложное
+        // "locked=yes". Считаем по СВОЕМУ reqId — чужой ответ не сойдётся.
+        if (token.isNotEmpty()) {
+            val expected = sign("$reqId|$status|$detail|$lan", token)
+            if (!MessageDigest.isEqual(
+                    expected.toByteArray(Charsets.UTF_8),
+                    json.optString("sig").lowercase().toByteArray(Charsets.UTF_8))
+            ) {
+                Log.w(tag, "$cmd reqId=$reqId: подпись ответа не сошлась")
+                return CommandResult(false, "неверная подпись ответа")
+            }
+        }
+        Log.i(tag, "$cmd reqId=$reqId -> $status ($detail)")
+        return CommandResult(status == "ok", detail, lan)
     }
 
     private fun sign(message: String, token: String): String {

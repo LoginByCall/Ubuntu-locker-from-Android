@@ -3,7 +3,8 @@
 
 Запускает сервер на локальном порту с тестовым токеном и проверяет:
 валидную подпись, replay, неверный токен, битую подпись, устаревший ts,
-старый формат (plain token), подмену команды под чужой подписью.
+старый формат (plain token), подмену команды под чужой подписью,
+подпись ответа сервера и отказ стартовать без токена.
 
 Запуск: python3 test_auth.py
 """
@@ -61,6 +62,22 @@ def main() -> int:
         tamper = signed("unlock")
         tamper["cmd"] = "status"
         assert call(tamper)["detail"] == "unauthorized", "подмена cmd"
+
+        # Ответ подписан: телефон должен уметь отличить его от подделки
+        # посредника (подмена "lan" или ложное "locked=yes").
+        req = signed("status")
+        resp = call(req)
+        expected = hmac.new(
+            TOKEN.encode(),
+            "|".join([req["reqId"], resp.get("status", ""), resp.get("detail", ""),
+                      resp.get("lan", "")]).encode(),
+            hashlib.sha256).hexdigest()
+        assert resp.get("sig") == expected, "ответ сервера должен быть подписан"
+        assert hmac.new(TOKEN.encode(),
+                        "|".join(["чужой-reqId", resp.get("status", ""),
+                                  resp.get("detail", ""), resp.get("lan", "")]).encode(),
+                        hashlib.sha256).hexdigest() != resp["sig"], \
+            "подпись должна быть привязана к reqId запроса"
         print("OK: все проверки HMAC-аутентификации пройдены")
         return 0
     finally:
@@ -68,5 +85,16 @@ def main() -> int:
         server.wait()
 
 
+def no_token_refused() -> None:
+    """Без токена сервер обязан не подниматься (fail-closed)."""
+    env = dict(os.environ, RFID_PORT=str(PORT + 1), RFID_TOKEN="")
+    done = subprocess.run([sys.executable, str(SERVER)], env=env,
+                          capture_output=True, text=True, timeout=30)
+    assert done.returncode == 2, f"ожидался отказ старта, код {done.returncode}"
+    assert "Токен не найден" in done.stderr, done.stderr[:200]
+    print("OK: без токена сервер не стартует")
+
+
 if __name__ == "__main__":
+    no_token_refused()
     raise SystemExit(main())

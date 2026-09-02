@@ -77,7 +77,9 @@ flowchart LR
   través del nodo ZeroTier integrado.
 - **Protocolo**: `{"cmd":"lock|unlock|status|ask|confirm|register","reqId":"<uuid>","ts":<seg-unix>,
   "sig":"<hex HMAC-SHA256(token, cmd|reqId|ts)>"}` →
-  `{"reqId":"…","status":"ok|error","detail":"…"}`.
+  `{"reqId":"…","status":"ok|error","detail":"…",
+  "sig":"<hex HMAC-SHA256(token, reqId|status|detail|lan)>"}`: la respuesta
+  también va firmada y ligada al `reqId` de la petición.
 
 El nodo integrado (compilación del AAR, tropiezos, mediciones) —
 [Паспорт-libzt.md](Паспорт-libzt.md).
@@ -282,12 +284,21 @@ la contraseña como siempre (fail-closed).
 
 - Los comandos van **firmados** con HMAC-SHA256 mediante un token compartido; el
   token en sí nunca viaja por la red. Las repeticiones se rechazan con una
-  ventana temporal (±300 s) y una caché de nonces. Prueba de regresión:
-  `ubuntu-agent/test_auth.py`.
+  ventana temporal (±300 s) y una caché de nonces. **Las respuestas se firman con
+  el mismo token** y quedan ligadas al `reqId` de la petición, así que nadie por
+  el camino puede cambiar la dirección del PC ni fingir un «bloqueado». Prueba de
+  regresión: `ubuntu-agent/test_auth.py`.
+- Sin token el servidor **no arranca** (fail-closed): escuchar toda la LAN sin
+  comprobar firmas no se permite ni «temporalmente».
+- Los datos de la aplicación no van ni a la copia en la nube ni al traspaso a un
+  móvil nuevo (`allowBackup="false"` y `data_extraction_rules.xml`): los tokens de
+  los PC están en Room en texto plano.
 - Fuera de la LAN el tráfico va además cifrado por ZeroTier (E2E).
 - No se guardan secretos en el repositorio: el token está en
   `~/.config/rfid-agent/token` (permisos 600); las direcciones reales de la
-  infraestructura, en archivos ignorados por git.
+  infraestructura, en archivos ignorados por git. La unidad de systemd no
+  contiene el token a propósito: esos archivos los pueden leer otros usuarios
+  locales.
 - El token viaja en el código QR al añadir un perfil — muestre ese QR solo a
   dispositivos de confianza.
 - Confirmaciones: en el push solo van el id de la petición y el texto, ni la

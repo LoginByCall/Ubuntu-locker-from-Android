@@ -49,15 +49,34 @@ from pathlib import Path
 
 HOST = os.environ.get("RFID_BIND_HOST", "::")  # "::" = dual-stack: LAN IPv4 + Yggdrasil IPv6
 PORT = int(os.environ.get("RFID_PORT", "5390"))
-TOKEN = os.environ.get("RFID_TOKEN", "")  # пустой = проверка отключена (не рекомендуется)
 
 AUTH_WINDOW_S = 300  # допустимый разбег часов телефона и ПК
+MAX_CONNECTIONS = 32  # одновременных соединений; сверх — отказ (защита от исчерпания потоков)
 
 CONFIG_DIR = Path(os.environ.get("XDG_CONFIG_HOME", str(Path.home() / ".config"))) / "rfid-agent"
 FCM_SA_FILE = CONFIG_DIR / "fcm-sa.json"      # ключ сервис-аккаунта Firebase (600)
 FCM_TOKEN_FILE = CONFIG_DIR / "fcm-token"     # push-токен телефона (команда register)
 PROFILE_ID_FILE = CONFIG_DIR / "profile-id"   # id профиля ПК (создаёт rfid-tray.py)
+TOKEN_FILE = CONFIG_DIR / "token"             # общий секрет (600), см. install-server.sh
 ASK_TIMEOUT_MAX_S = 120
+
+
+def load_token() -> str:
+    """Токен: из файла 600 в конфиге; RFID_TOKEN — только для тестов.
+
+    В юните systemd токена нет намеренно: файл юнита создаётся с правами 644 и
+    читался бы любым локальным пользователем.
+    """
+    env = os.environ.get("RFID_TOKEN")
+    if env is not None:
+        return env
+    try:
+        return TOKEN_FILE.read_text(encoding="utf-8").strip()
+    except OSError:
+        return ""
+
+
+TOKEN = load_token()
 
 # Поля тела, попадающие в подпись помимо "cmd|reqId|ts" (порядок важен).
 SIGNED_FIELDS: dict[str, tuple[str, ...]] = {
@@ -163,6 +182,22 @@ def verify_signature(payload: dict) -> str:
             return "replay"
         _seen_req_ids[req_id] = now
     return ""
+
+
+def sign_reply(resp: dict) -> dict:
+    """Подписать ответ тем же токеном: reqId|status|detail|lan.
+
+    Без этого посредник в общей сети мог бы подсунуть телефону чужой ответ —
+    например, поле "lan" с адресом атакующего или ложное "locked=yes".
+    reqId в подписи привязывает ответ к конкретному запросу.
+    """
+    if not TOKEN:
+        return resp
+    parts = [str(resp.get(f, "")) for f in ("reqId", "status", "detail", "lan")]
+    resp["sig"] = hmac.new(
+        TOKEN.encode("utf-8"), "|".join(parts).encode("utf-8"), hashlib.sha256
+    ).hexdigest()
+    return resp
 
 
 # --- Подтверждение действий на телефоне ------------------------------------
@@ -310,11 +345,26 @@ def handle_command(payload: dict, peer: str = "") -> dict:
     return {"reqId": req_id, "status": "ok" if ok else "error", "detail": detail}
 
 
+_connections = threading.BoundedSemaphore(MAX_CONNECTIONS)
+
+
 class Handler(socketserver.StreamRequestHandler):
-    timeout = ASK_TIMEOUT_MAX_S + 30  # ask ждёт вердикт с телефона
+    # Таймаут чтения: во время ask сервер не читает сокет, поэтому длинное
+    # ожидание вердикта ему не мешает — а простаивающие соединения не копятся.
+    timeout = 30
 
     def handle(self) -> None:
         peer = self.client_address[0]
+        if not _connections.acquire(blocking=False):
+            log.warning("Отказ %s: занято %d соединений", peer, MAX_CONNECTIONS)
+            self._send({"status": "error", "detail": "busy"})
+            return
+        try:
+            self._serve(peer)
+        finally:
+            _connections.release()
+
+    def _serve(self, peer: str) -> None:
         log.info("Соединение от %s", peer)
         try:
             for raw in self.rfile:
@@ -332,7 +382,7 @@ class Handler(socketserver.StreamRequestHandler):
             log.info("Соединение с %s завершено: %s", peer, exc)
 
     def _send(self, obj: dict) -> None:
-        data = (json.dumps(obj, ensure_ascii=False) + "\n").encode("utf-8")
+        data = (json.dumps(sign_reply(obj), ensure_ascii=False) + "\n").encode("utf-8")
         self.wfile.write(data)
         self.wfile.flush()
 
@@ -350,8 +400,12 @@ class Server(socketserver.ThreadingTCPServer):
 
 
 def main() -> int:
-    log.info("Старт RFID TCP-сервера на %s:%d (auth=%s)",
-             HOST, PORT, "on" if TOKEN else "OFF")
+    if not TOKEN:
+        # Fail-closed: без токена подпись не проверить, а слушаем мы всю LAN.
+        log.error("Токен не найден (%s). Сервер не запущен: без подписи "
+                  "команды принимать нельзя. Выполните install-server.sh.", TOKEN_FILE)
+        return 2
+    log.info("Старт RFID TCP-сервера на %s:%d", HOST, PORT)
     with Server((HOST, PORT), Handler) as server:
         try:
             server.serve_forever()

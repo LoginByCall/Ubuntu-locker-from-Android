@@ -40,7 +40,9 @@ if [[ ! -s "$TOKEN_FILE" ]]; then
     chmod 0600 "$TOKEN_FILE"
     echo "Сгенерирован новый токен."
 fi
-TOKEN="$(cat "$TOKEN_FILE")"
+chmod 0600 "$TOKEN_FILE"  # на случай токена, созданного старой версией
+# В юнит токен НЕ попадает: файл юнита создаётся с правами 644 и читался бы
+# любым локальным пользователем. Сервер берёт токен прямо из $TOKEN_FILE.
 
 # 2b. Параметры ZeroTier для QR (встроенный узел libzt в приложении).
 # Без zt-network QR отдаёт ZT-адрес ПК, но приложение идёт «напрямую» → «недоступен».
@@ -91,7 +93,6 @@ After=graphical-session.target
 [Service]
 Type=simple
 Environment=RFID_PORT=$PORT
-Environment=RFID_TOKEN=$TOKEN
 ExecStart=$PY_BIN $BIN_DIR/rfid-server.py
 Restart=on-failure
 RestartSec=3
@@ -99,6 +100,7 @@ RestartSec=3
 [Install]
 WantedBy=default.target
 EOF
+chmod 0600 "$UNIT_FILE"  # секретов в нём нет, но и читать посторонним незачем
 echo "Создан unit: $UNIT_FILE"
 
 # 4. Запуск
@@ -139,7 +141,7 @@ echo "============================================================"
 echo " RFID TCP-сервер запущен."
 echo "   IP ПК:  ${IP:-<определите вручную>}"
 echo "   Порт:   $PORT"
-echo "   Токен:  $TOKEN"
+echo "   Токен:  $TOKEN_FILE (на экран не печатаем)"
 echo
 echo " Подключение в Android-приложении:"
 echo "   - проще всего: иконка в трее → «Показать QR-код» → сканировать;"

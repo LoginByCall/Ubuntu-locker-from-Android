@@ -73,7 +73,9 @@ flowchart LR
   built-in ZeroTier node.
 - **Protocol**: `{"cmd":"lock|unlock|status|ask|confirm|register","reqId":"<uuid>","ts":<unix-sec>,
   "sig":"<hex HMAC-SHA256(token, cmd|reqId|ts)>"}` →
-  `{"reqId":"…","status":"ok|error","detail":"…"}`.
+  `{"reqId":"…","status":"ok|error","detail":"…",
+  "sig":"<hex HMAC-SHA256(token, reqId|status|detail|lan)>"}` — the reply is
+  signed too and bound to the request’s `reqId`.
 
 The built-in node (building the AAR, pitfalls, measurements) —
 [Паспорт-libzt.md](Паспорт-libzt.md).
@@ -275,11 +277,19 @@ for the password as usual (fail-closed).
 
 - Commands are **signed** with HMAC-SHA256 using a shared token; the token
   itself never travels over the network. Replays are rejected by a time window
-  (±300 s) and a nonce cache. Regression test: `ubuntu-agent/test_auth.py`.
+  (±300 s) and a nonce cache. **Replies are signed with the same token** and
+  bound to the request’s `reqId`, so an on-path attacker cannot swap the PC’s
+  address or fake a “locked” status. Regression test: `ubuntu-agent/test_auth.py`.
+- Without a token the server **refuses to start** (fail-closed): listening on the
+  whole LAN without signature checks is not allowed, not even “temporarily”.
+- App data goes neither into cloud backup nor into device-to-device transfer
+  (`allowBackup="false"` plus `data_extraction_rules.xml`) — the PC tokens sit in
+  Room in plain text.
 - Outside the LAN the traffic is additionally encrypted by ZeroTier (E2E).
 - No secrets are kept in the repository: the token lives in
   `~/.config/rfid-agent/token` (mode 600); real infrastructure addresses are in
-  git-ignored files.
+  git-ignored files. The systemd unit deliberately holds no token — unit files
+  are readable by other local users.
 - The token is carried in the QR code when a profile is added — only show that
   QR code to trusted devices.
 - Confirmations: the push carries only the request id and the text — neither the
