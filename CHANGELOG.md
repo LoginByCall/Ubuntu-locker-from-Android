@@ -13,6 +13,23 @@
 
 ## [Не выпущено]
 
+## [1.2.3] — 2026-09-03
+
+### Исправлено
+- Терминальная половина гонки под PAM всё ещё молчала: `pam_exec` запускает
+  хелпер **от имени пользователя**, а не root, поэтому `/proc/<sudo>/fd/0` ему
+  закрыт (sudo — setuid-программа), а `/dev/tty` недоступен из-за отсутствия
+  управляющего терминала. Теперь путь к терминалу берётся из `PAM_TTY` —
+  переменной, которую PAM передаёт модулю именно для этого; обёртка
+  `rfid-pam-confirm` пробрасывает её через `env -i`.
+- Хелпер пишет строку разбора в `~/.local/state/rfid-agent/pam.log`
+  (uid, euid, PAM_TTY, найденный терминал): под PAM ни stdout, ни stderr никуда
+  не ведут, и без журнала любой сбой выглядит как «просто ждём телефон».
+- `install-pam.sh` не падал бы на второй установке: таймер автоотката с тем же
+  именем оставался загруженным, `systemd-run` отказывался его создавать, и
+  `set -e` обрывал установку до правки PAM. Прежний юнит теперь снимается, а
+  неудача с таймером больше не прерывает установку — печатается команда отката.
+
 ## [1.2.2] — 2026-09-03
 
 ### Исправлено
@@ -127,7 +144,8 @@
   уходит ни в облачный бэкап, ни в перенос на новый телефон.
 - Лимит одновременных соединений и короткий таймаут чтения у агента.
 
-[Не выпущено]: https://github.com/LoginByCall/Ubuntu-locker-from-Android/compare/v1.2.2...HEAD
+[Не выпущено]: https://github.com/LoginByCall/Ubuntu-locker-from-Android/compare/v1.2.3...HEAD
+[1.2.3]: https://github.com/LoginByCall/Ubuntu-locker-from-Android/compare/v1.2.2...v1.2.3
 [1.2.2]: https://github.com/LoginByCall/Ubuntu-locker-from-Android/compare/v1.2.1...v1.2.2
 [1.2.1]: https://github.com/LoginByCall/Ubuntu-locker-from-Android/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/LoginByCall/Ubuntu-locker-from-Android/compare/v1.1.0...v1.2.0

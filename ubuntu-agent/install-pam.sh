@@ -52,10 +52,18 @@ BACKUP="$PAM_FILE.rfid-backup-$(date +%Y%m%d-%H%M%S)"
 cp "$PAM_FILE" "$BACKUP"
 echo "Бэкап: $BACKUP"
 if command -v systemd-run >/dev/null; then
-    systemd-run --quiet --unit=rfid-pam-revert --on-active=10min \
-        /bin/cp "$BACKUP" "$PAM_FILE"
-    echo "Автооткат через 10 минут. Проверьте sudo и отмените таймер:"
-    echo "    sudo systemctl stop rfid-pam-revert.timer"
+    # Прошлый таймер мог остаться загруженным — иначе systemd-run откажется
+    # создавать юнит с тем же именем, и установка оборвётся на set -e.
+    systemctl stop rfid-pam-revert.timer rfid-pam-revert.service 2>/dev/null || true
+    systemctl reset-failed rfid-pam-revert.timer rfid-pam-revert.service 2>/dev/null || true
+    if systemd-run --quiet --unit=rfid-pam-revert --on-active=10min \
+            /bin/cp "$BACKUP" "$PAM_FILE"; then
+        echo "Автооткат через 10 минут. Проверьте sudo и отмените таймер:"
+        echo "    sudo systemctl stop rfid-pam-revert.timer"
+    else
+        echo "ВНИМАНИЕ: таймер автоотката не создан. Если что-то сломается:"
+        echo "    sudo cp $BACKUP $PAM_FILE"
+    fi
 fi
 
 # 3. Правка: строка должна идти до common-auth, иначе перехватывать нечего.

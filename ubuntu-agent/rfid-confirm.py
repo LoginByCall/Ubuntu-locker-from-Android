@@ -214,24 +214,55 @@ def race_local_and_phone(prompt: str, timeout_s: int) -> tuple[str, str]:
             local.close()
 
 
+def log_pam(message: str) -> None:
+    """Строка в журнал разбора: почему гонка пошла именно так.
+
+    Под PAM ни stdout, ни stderr никуда не ведут, поэтому без такого журнала
+    любой сбой выглядит как «просто ждём телефон» — на этом уже дважды
+    потерялось время.
+    """
+    try:
+        state = Path(os.environ.get("XDG_STATE_HOME",
+                                    str(Path.home() / ".local/state"))) / "rfid-agent"
+        state.mkdir(parents=True, exist_ok=True)
+        with (state / "pam.log").open("a", encoding="utf-8") as log:
+            log.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} uid={os.getuid()} "
+                      f"euid={os.geteuid()} PAM_TTY={os.environ.get('PAM_TTY', '-')} "
+                      f"{message}\n")
+    except OSError:
+        pass  # журнал — не повод ломать аутентификацию
+
+
 def open_user_tty() -> int | None:
     """Найти терминал пользователя и открыть его на чтение-запись.
 
-    `/dev/tty` годится не всегда: под pam_exec у хелпера нет управляющего
-    терминала (проверено на живом sudo — приглашение не появлялось вовсе, а
-    ожидание висело до таймаута). Зато есть родитель — сам sudo, и его
-    стандартные потоки смотрят в терминал пользователя; от root он открывается.
+    Порядок не случаен:
+    * `PAM_TTY` — то, что PAM специально сообщает модулю (для sudo это
+      /dev/pts/N). Открывается от имени пользователя, а pam_exec запускает
+      хелпер именно так, не от root.
+    * `/dev/tty` — под pam_exec не работает: управляющего терминала нет
+      (проверено на живом sudo — приглашение не появлялось вовсе).
+    * потоки родителя (сам sudo) — последняя попытка; годится, только если
+      хелпер всё-таки от root, потому что sudo setuid и его /proc/<pid>/fd
+      закрыт для пользователя.
     """
+    pam_tty = os.environ.get("PAM_TTY", "").strip()
+    candidates = []
+    if pam_tty and (pam_tty.startswith("/") or pam_tty.startswith("pts")):
+        candidates.append(pam_tty if pam_tty.startswith("/") else f"/dev/{pam_tty}")
     parent = os.getppid()
-    for path in ("/dev/tty", f"/proc/{parent}/fd/0",
-                 f"/proc/{parent}/fd/1", f"/proc/{parent}/fd/2"):
+    candidates += ["/dev/tty", f"/proc/{parent}/fd/0",
+                   f"/proc/{parent}/fd/1", f"/proc/{parent}/fd/2"]
+    for path in candidates:
         try:
             fd = os.open(path, os.O_RDWR | os.O_NOCTTY)
         except OSError:
             continue
         if os.isatty(fd):
+            log_pam(f"терминал найден: {path}")
             return fd
         os.close(fd)
+    log_pam("терминал НЕ найден, пробовали: " + ", ".join(candidates))
     return None
 
 

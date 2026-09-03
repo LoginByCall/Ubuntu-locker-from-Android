@@ -34,8 +34,12 @@ case "$PROMPT" in
 esac
 PROMPT="$(printf '%.120s' "$PROMPT")"    # в push уходит короткий текст, не портянка
 
+# PAM_TTY передаём обязательно: это единственный надёжный путь к терминалу
+# пользователя, а env -i иначе выбросит его вместе со всем окружением.
 exec env -i \
     PATH=/usr/bin:/bin \
     HOME="$HOME_DIR" \
     XDG_CONFIG_HOME="$HOME_DIR/.config" \
+    XDG_STATE_HOME="$HOME_DIR/.local/state" \
+    PAM_TTY="${PAM_TTY:-}" \
     /usr/bin/python3 /usr/local/lib/rfid-agent/rfid-confirm.py --pam "$PROMPT" -t 30
