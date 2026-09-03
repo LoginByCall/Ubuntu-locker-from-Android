@@ -205,8 +205,61 @@ code, leftover = run_pam_leftover()
 assert code == 1, code
 assert leftover == "пароль-руками\n".encode(), leftover
 
+def run_pam_without_ctty() -> tuple[int, str]:
+    """Хелпер без управляющего терминала — как его запускает pam_exec.
+
+    Ровно этот случай дважды проходил мимо проверок: /dev/tty не открывался,
+    терминальная половина гонки молча отключалась, и ожидание висело до
+    таймаута. Терминал берётся у родителя (в бою это сам sudo).
+    """
+    pid, master = pty.fork()
+    if pid == 0:
+        child = os.fork()
+        if child == 0:
+            os.setsid()                    # управляющего терминала больше нет
+            null = os.open(os.devnull, os.O_RDWR)
+            for fd in (0, 1, 2):
+                os.dup2(null, fd)
+            env = {**os.environ, "PATH": f"{stub_bin}:{os.environ['PATH']}",
+                   "RFID_PORT": PORT}
+            os.execve(sys.executable, [sys.executable, "rfid-confirm.py", "--pam",
+                                       "sudo apt update", "-t", "8"], env)
+        _, st = os.waitpid(child, 0)
+        os._exit(os.waitstatus_to_exitcode(st))
+    os.set_blocking(master, False)
+    seen, typed, started = b"", False, time.time()
+    while time.time() - started < 10:
+        if not typed and time.time() - started > 1.5:
+            os.write(master, "пароль-руками\n".encode())
+            typed = True
+        try:
+            chunk = os.read(master, 4096)
+        except BlockingIOError:
+            time.sleep(0.05)
+            continue
+        except OSError:
+            break            # хелпер завершился, терминал закрылся
+        if not chunk:
+            break
+        seen += chunk
+    _, status = os.waitpid(pid, 0)
+    os.close(master)
+    return os.waitstatus_to_exitcode(status), seen.decode(errors="replace")
+
+
+# 11. Без управляющего терминала приглашение всё равно видно, ввод ловится.
+pushed.clear()
+started = time.time()
+code, shown = run_pam_without_ctty()
+elapsed = time.time() - started
+assert "введите пароль" in shown, f"приглашение не показано: {shown!r}"
+assert code == 1, (code, shown)
+assert elapsed < 8, f"ввод не прервал ожидание: {elapsed:.1f} с"
+assert "пароль-руками" not in shown, "ECHO не выключен — пароль виден на экране"
+
 print("OK: rfid-askpass отдаёт пароль только после подтверждения")
 print("OK: гонка терминал/телефон — выигрывает тот, кто ответил первым")
 print("OK: без терминала гонка идёт между окном (zenity) и телефоном")
 print("OK: режим --pam: телефон против ввода пароля, пароль не участвует")
 print("OK: набранный пароль остаётся в очереди терминала — вводить дважды не нужно")
+print("OK: без управляющего терминала (pam_exec) приглашение всё равно работает")

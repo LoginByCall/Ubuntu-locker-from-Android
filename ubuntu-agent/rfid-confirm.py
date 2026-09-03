@@ -33,6 +33,7 @@ import os
 import queue
 import select
 import shutil
+import signal
 import socket
 import subprocess
 import sys
@@ -213,6 +214,27 @@ def race_local_and_phone(prompt: str, timeout_s: int) -> tuple[str, str]:
             local.close()
 
 
+def open_user_tty() -> int | None:
+    """Найти терминал пользователя и открыть его на чтение-запись.
+
+    `/dev/tty` годится не всегда: под pam_exec у хелпера нет управляющего
+    терминала (проверено на живом sudo — приглашение не появлялось вовсе, а
+    ожидание висело до таймаута). Зато есть родитель — сам sudo, и его
+    стандартные потоки смотрят в терминал пользователя; от root он открывается.
+    """
+    parent = os.getppid()
+    for path in ("/dev/tty", f"/proc/{parent}/fd/0",
+                 f"/proc/{parent}/fd/1", f"/proc/{parent}/fd/2"):
+        try:
+            fd = os.open(path, os.O_RDWR | os.O_NOCTTY)
+        except OSError:
+            continue
+        if os.isatty(fd):
+            return fd
+        os.close(fd)
+    return None
+
+
 def pending_input(fd: int) -> bool:
     """Есть ли в очереди терминала готовый ввод — без его вычитывания."""
     counter = array.array("i", [0])
@@ -241,10 +263,12 @@ def race_phone_and_typing(prompt: str, timeout_s: int) -> bool:
     threading.Thread(target=lambda: answers.put(ask(prompt, timeout_s, ask_id)),
                      daemon=True).start()
     saved = None
-    try:
-        tty = os.open("/dev/tty", os.O_RDWR | os.O_NOCTTY)
-    except OSError:
-        tty = None  # без терминала (GUI, cron) остаётся только телефон
+    # Терминал не наш (мы в чужой сессии), поэтому смена его настроек шлёт
+    # SIGTTOU и остановила бы процесс. Сигнал глушим — иначе гонка зависнет.
+    signal.signal(signal.SIGTTOU, signal.SIG_IGN)
+    tty = open_user_tty()
+    if tty is None:
+        pass  # без терминала (GUI, cron) остаётся только телефон
     else:
         # ICANON оставляем: в каноническом режиме строка копится в буфере
         # терминала и после Enter достаётся тому, кто будет читать следующим,

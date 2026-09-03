@@ -13,6 +13,19 @@
 
 ## [Не выпущено]
 
+## [1.2.2] — 2026-09-03
+
+### Исправлено
+- В PAM-режиме терминальная половина гонки не работала вовсе: `pam_exec`
+  запускает хелпер без управляющего терминала, `/dev/tty` не открывался, и
+  приглашение «Подтвердите на телефоне или введите пароль» никто не видел —
+  `sudo` молча ждал телефон все 30 секунд. Теперь терминал берётся у
+  родительского процесса (`/proc/<sudo>/fd/0`), а SIGTTOU глушится, иначе
+  смена настроек чужого терминала остановила бы процесс.
+  Найдено экспериментом с настоящим `sudo` в псевдотерминале; прежние проверки
+  этого не ловили, потому что запускали хелпер с терминалом. Добавлен
+  сценарий 11: хелпер в отдельной сессии, без `/dev/tty`.
+
 ## [1.2.1] — 2026-09-03
 
 ### Исправлено
@@ -114,7 +127,8 @@
   уходит ни в облачный бэкап, ни в перенос на новый телефон.
 - Лимит одновременных соединений и короткий таймаут чтения у агента.
 
-[Не выпущено]: https://github.com/LoginByCall/Ubuntu-locker-from-Android/compare/v1.2.1...HEAD
+[Не выпущено]: https://github.com/LoginByCall/Ubuntu-locker-from-Android/compare/v1.2.2...HEAD
+[1.2.2]: https://github.com/LoginByCall/Ubuntu-locker-from-Android/compare/v1.2.1...v1.2.2
 [1.2.1]: https://github.com/LoginByCall/Ubuntu-locker-from-Android/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/LoginByCall/Ubuntu-locker-from-Android/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/LoginByCall/Ubuntu-locker-from-Android/compare/v1.0.3...v1.1.0
