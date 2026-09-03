@@ -316,13 +316,15 @@ while the terminal shows
 
 ```
 sudo: apt-get update
-Confirm on the phone or press any key to type the password:
+Confirm on the phone or type your password:
 ```
 
 Press the button on the phone and `sudo` lets you in with no password asked.
-Press any key and the phone request is withdrawn and the usual password prompt
-opens. A rejection or a timeout leads to the same place: this line cannot weaken
-`sudo`.
+Start typing the password and the phone request is withdrawn, while what you
+typed is handed over to the usual `[sudo] password for …` prompt: no need to
+type it twice and no characters are lost (the helper notices the input without
+taking it out of the terminal queue). A rejection or a timeout leads to the same
+place: this line cannot weaken `sudo`.
 
 Check it in another terminal with `sudo -k; sudo true`. Works:
 `sudo systemctl stop rfid-pam-revert.timer`. Doesn’t: wait ten minutes or run

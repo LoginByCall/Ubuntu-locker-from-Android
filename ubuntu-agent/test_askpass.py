@@ -8,7 +8,7 @@
 пусто, код 1. Пароль для теста берётся из временного sudo.pass.
 """
 import hashlib, hmac, importlib.util, json, os, socket, subprocess, sys, tempfile
-import pty, threading, time, uuid
+import fcntl, pty, termios, threading, time, uuid
 from pathlib import Path
 
 PORT = "55392"
@@ -155,16 +155,15 @@ code, stdout = run_pam_pty(typed=None, verdict="approve")
 assert code == 0, (code, stdout)
 assert "пароль-для-теста" not in stdout, "в режиме --pam пароль печататься не должен"
 
-# 8. PAM: нажали клавишу — уходим к обычному вводу пароля (ненулевой код),
-# запрос на телефоне при этом снимается. Время проверяем специально: раньше
-# тест проходил по таймауту в 20 с, не заметив, что клавиша не сработала
-# (терминал в каноническом режиме отдаёт ввод только по Enter).
+# 8. PAM: начали вводить пароль — уходим к обычному приглашению (ненулевой
+# код), запрос на телефоне снимается. Время проверяем специально: тест уже
+# однажды проходил по таймауту, не замечая, что ввод не сработал.
 pushed.clear()
 started = time.time()
-code, stdout = run_pam_pty(typed="x", verdict=None)   # без перевода строки!
+code, stdout = run_pam_pty(typed="пароль-руками\n", verdict=None)
 elapsed = time.time() - started
 assert code == 1, (code, stdout)
-assert elapsed < 10, f"клавиша не прервала ожидание: {elapsed:.1f} с"
+assert elapsed < 10, f"ввод не прервал ожидание: {elapsed:.1f} с"
 assert "пароль-для-теста" not in stdout
 
 # 9. PAM: телефон отказал — тоже к паролю.
@@ -172,7 +171,42 @@ pushed.clear()
 code, stdout = run_pam_pty(typed=None, verdict="deny")
 assert code == 1, (code, stdout)
 
+def run_pam_leftover() -> tuple[int, bytes]:
+    """Набранный пароль обязан остаться в очереди терминала.
+
+    Иначе его пришлось бы вводить второй раз: следующим читателем терминала
+    будет pam_unix со своим «[sudo] password for ...».
+    """
+    master, slave = pty.openpty()
+    env = {**os.environ, "PATH": f"{stub_bin}:{os.environ['PATH']}", "RFID_PORT": PORT}
+    pid = os.fork()
+    if pid == 0:
+        os.setsid()
+        fcntl.ioctl(slave, termios.TIOCSCTTY, 0)  # slave становится нашим терминалом
+        for fd in (0, 1, 2):
+            os.dup2(slave, fd)
+        os.execve(sys.executable, [sys.executable, "rfid-confirm.py", "--pam",
+                                   "sudo apt update", "-t", "8"], env)
+    time.sleep(1.5)                      # дать хелперу поднять приглашение
+    os.write(master, "пароль-руками\n".encode())
+    _, status = os.waitpid(pid, 0)
+    os.set_blocking(slave, False)
+    try:
+        leftover = os.read(slave, 200)
+    except BlockingIOError:
+        leftover = b""
+    os.close(master); os.close(slave)
+    return os.waitstatus_to_exitcode(status), leftover
+
+
+# 10. Набранное не съедено: строка ждёт в очереди для pam_unix.
+pushed.clear()
+code, leftover = run_pam_leftover()
+assert code == 1, code
+assert leftover == "пароль-руками\n".encode(), leftover
+
 print("OK: rfid-askpass отдаёт пароль только после подтверждения")
 print("OK: гонка терминал/телефон — выигрывает тот, кто ответил первым")
 print("OK: без терминала гонка идёт между окном (zenity) и телефоном")
-print("OK: режим --pam: телефон против клавиши, пароль не участвует")
+print("OK: режим --pam: телефон против ввода пароля, пароль не участвует")
+print("OK: набранный пароль остаётся в очереди терминала — вводить дважды не нужно")

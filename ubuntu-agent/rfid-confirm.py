@@ -24,6 +24,8 @@ NOPASSWD с внешним фактором в виде телефона. Тре
 from __future__ import annotations
 
 import argparse
+import array
+import fcntl
 import hashlib
 import hmac
 import json
@@ -211,13 +213,28 @@ def race_local_and_phone(prompt: str, timeout_s: int) -> tuple[str, str]:
             local.close()
 
 
-def race_phone_and_keypress(prompt: str, timeout_s: int) -> bool:
-    """Гонка для PAM: телефон против клавиши в терминале.
+def pending_input(fd: int) -> bool:
+    """Есть ли в очереди терминала готовый ввод — без его вычитывания."""
+    counter = array.array("i", [0])
+    try:
+        fcntl.ioctl(fd, termios.FIONREAD, counter, True)
+    except OSError:
+        return False
+    return counter[0] > 0
+
+
+def race_phone_and_typing(prompt: str, timeout_s: int) -> bool:
+    """Гонка для PAM: телефон против ввода пароля в терминале.
 
     Пароль здесь не читается и нигде не хранится — им займётся сам PAM.
-    Подтвердили на телефоне → True (аутентификация пройдена). Нажали клавишу
-    («буду вводить пароль»), отказали или вышло время → False, и PAM идёт
-    дальше по стеку к обычному вводу пароля.
+    Хитрость в том, что набранное мы НЕ забираем из очереди терминала, а лишь
+    замечаем через FIONREAD: строка остаётся в буфере и достаётся следующему
+    приглашению («[sudo] password for ...»). Поэтому пароль можно набирать
+    сразу, не дожидаясь ничего и не теряя ни одного символа.
+
+    Подтвердили на телефоне → True (аутентификация пройдена; всё набранное
+    вычищаем, чтобы не утекло в командную строку). Начали вводить пароль,
+    отказали или вышло время → False, и PAM идёт дальше по стеку.
     """
     ask_id = str(uuid.uuid4())
     answers: queue.Queue = queue.Queue()
@@ -229,33 +246,36 @@ def race_phone_and_keypress(prompt: str, timeout_s: int) -> bool:
     except OSError:
         tty = None  # без терминала (GUI, cron) остаётся только телефон
     else:
-        # Без ICANON терминал отдаёт символ сразу — иначе «любая клавиша»
-        # не сработала бы до Enter. ECHO гасим, чтобы случайный символ не
-        # остался на экране. Прежние настройки возвращаем в finally.
+        # ICANON оставляем: в каноническом режиме строка копится в буфере
+        # терминала и после Enter достаётся тому, кто будет читать следующим,
+        # то есть pam_unix. ECHO гасим — пароль на экране не нужен.
         saved = termios.tcgetattr(tty)
-        raw = termios.tcgetattr(tty)
-        raw[3] &= ~(termios.ICANON | termios.ECHO)  # lflag
-        termios.tcsetattr(tty, termios.TCSADRAIN, raw)
-        os.write(tty, f"{prompt}\nПодтвердите на телефоне или нажмите любую "
-                      "клавишу, чтобы ввести пароль: ".encode("utf-8"))
+        quiet = termios.tcgetattr(tty)
+        quiet[3] &= ~termios.ECHO  # lflag
+        termios.tcsetattr(tty, termios.TCSADRAIN, quiet)
+        os.write(tty, f"{prompt}\nПодтвердите на телефоне "
+                      "или введите пароль: ".encode("utf-8"))
     try:
         deadline = time.time() + timeout_s
         while time.time() < deadline:
             if not answers.empty():
                 ok, detail = answers.get()
                 if tty is not None:
+                    # Недонабранное вычищаем: иначе после успеха оно попадёт
+                    # в командную строку — то есть пароль окажется на экране.
+                    termios.tcflush(tty, termios.TCIFLUSH)
                     os.write(tty, ("\nПодтверждено с телефона.\n" if ok
                                    else f"\nТелефон: {detail}\n").encode("utf-8"))
                 return ok
             if tty is None:
                 time.sleep(0.1)
                 continue
-            ready, _, _ = select.select([tty], [], [], 0.1)
-            if ready:
-                os.read(tty, 1)  # символ не нужен: пароль спросит сам PAM
-                os.write(tty, b"\n")
+            if pending_input(tty):
+                # Пароль уже набран и ждёт в буфере — забирать его не наше
+                # дело: пусть его прочитает pam_unix своим приглашением.
                 cancel_ask(ask_id)  # телефон больше не нужен
                 return False
+            time.sleep(0.05)
         cancel_ask(ask_id)
         return False
     finally:
@@ -319,7 +339,7 @@ def main() -> int:
 
     if args.pam:
         # Пароля не касаемся: подтвердил телефон — код 0, иначе PAM спросит сам.
-        return 0 if race_phone_and_keypress(prompt, args.timeout) else 1
+        return 0 if race_phone_and_typing(prompt, args.timeout) else 1
 
     if args.password:
         # Гонка: что быстрее — руки на клавиатуре или кнопка на телефоне.

@@ -324,13 +324,15 @@ de inmediato y en la terminal aparece
 
 ```
 sudo: apt-get update
-Confirme en el móvil o pulse cualquier tecla para escribir la contraseña:
+Confirme en el móvil o escriba la contraseña:
 ```
 
-Pulse el botón del móvil y `sudo` le deja pasar sin pedir contraseña. Pulse una
-tecla y la petición del móvil se retira y se abre el aviso normal de contraseña.
-Un rechazo o un tiempo agotado llevan al mismo sitio: esta línea no puede
-debilitar `sudo`.
+Pulse el botón del móvil y `sudo` le deja pasar sin pedir contraseña. Empiece a
+escribir la contraseña y la petición del móvil se retira, mientras que lo escrito
+pasa al aviso habitual `[sudo] password for …`: no hay que teclearla dos veces ni
+se pierde ningún carácter (el ayudante detecta la entrada sin sacarla de la cola
+de la terminal). Un rechazo o un tiempo agotado llevan al mismo sitio: esta línea
+no puede debilitar `sudo`.
 
 Compruébelo en otra terminal con `sudo -k; sudo true`. Funciona:
 `sudo systemctl stop rfid-pam-revert.timer`. No funciona: espere diez minutos o

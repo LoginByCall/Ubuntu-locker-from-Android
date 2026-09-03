@@ -330,13 +330,15 @@ Terminal erscheint
 
 ```
 sudo: apt-get update
-Am Handy bestätigen oder eine Taste drücken, um das Passwort einzugeben:
+Am Handy bestätigen oder Passwort eingeben:
 ```
 
-Knopf am Handy — `sudo` lässt durch, ganz ohne Passwortfrage. Taste gedrückt —
-die Anfrage am Handy wird zurückgezogen und die gewohnte Passwortabfrage
-erscheint. Ablehnung und Timeout führen an dieselbe Stelle: schwächen kann diese
-Zeile `sudo` nicht.
+Knopf am Handy — `sudo` lässt durch, ganz ohne Passwortfrage. Fangen Sie an, das
+Passwort zu tippen — die Anfrage am Handy wird zurückgezogen, und das Getippte
+übernimmt die gewohnte Abfrage `[sudo] password for …`: nichts muss doppelt
+eingegeben werden, kein Zeichen geht verloren (der Helfer bemerkt die Eingabe,
+ohne sie aus der Terminal-Warteschlange zu nehmen). Ablehnung und Timeout führen
+an dieselbe Stelle: schwächen kann diese Zeile `sudo` nicht.
 
 Prüfen Sie es in einem zweiten Terminal mit `sudo -k; sudo true`. Klappt:
 `sudo systemctl stop rfid-pam-revert.timer`. Klappt nicht: zehn Minuten warten
