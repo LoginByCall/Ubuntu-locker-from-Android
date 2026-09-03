@@ -13,6 +13,18 @@
 
 ## [Не выпущено]
 
+## [1.2.4] — 2026-09-03
+
+### Изменено
+- Журнал разбора `~/.local/state/rfid-agent/pam.log` пишется на каждый `sudo`,
+  поэтому обнуляется при превышении 64 КБ.
+
+### Подтверждено на живом sudo
+- Приглашение появляется за 0,10 с, набранный пароль подхватывается за 0,15 с,
+  на телефон уходит запрос параллельно. В журнале: `uid=1000 euid=1000
+  PAM_TTY=/dev/pts/N` — `pam_exec` действительно запускает хелпер от имени
+  пользователя, что и было причиной трёх неудачных попыток до этого.
+
 ## [1.2.3] — 2026-09-03
 
 ### Исправлено
@@ -144,7 +156,8 @@
   уходит ни в облачный бэкап, ни в перенос на новый телефон.
 - Лимит одновременных соединений и короткий таймаут чтения у агента.
 
-[Не выпущено]: https://github.com/LoginByCall/Ubuntu-locker-from-Android/compare/v1.2.3...HEAD
+[Не выпущено]: https://github.com/LoginByCall/Ubuntu-locker-from-Android/compare/v1.2.4...HEAD
+[1.2.4]: https://github.com/LoginByCall/Ubuntu-locker-from-Android/compare/v1.2.3...v1.2.4
 [1.2.3]: https://github.com/LoginByCall/Ubuntu-locker-from-Android/compare/v1.2.2...v1.2.3
 [1.2.2]: https://github.com/LoginByCall/Ubuntu-locker-from-Android/compare/v1.2.1...v1.2.2
 [1.2.1]: https://github.com/LoginByCall/Ubuntu-locker-from-Android/compare/v1.2.0...v1.2.1

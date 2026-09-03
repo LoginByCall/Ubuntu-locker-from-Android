@@ -225,7 +225,11 @@ def log_pam(message: str) -> None:
         state = Path(os.environ.get("XDG_STATE_HOME",
                                     str(Path.home() / ".local/state"))) / "rfid-agent"
         state.mkdir(parents=True, exist_ok=True)
-        with (state / "pam.log").open("a", encoding="utf-8") as log:
+        journal = state / "pam.log"
+        # Строка на каждый sudo — файл не должен расти бесконечно.
+        if journal.exists() and journal.stat().st_size > 64 * 1024:
+            journal.unlink()
+        with journal.open("a", encoding="utf-8") as log:
             log.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} uid={os.getuid()} "
                       f"euid={os.geteuid()} PAM_TTY={os.environ.get('PAM_TTY', '-')} "
                       f"{message}\n")
