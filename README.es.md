@@ -34,7 +34,10 @@ el móvil y el PC.
   sistema del agente; pantalla de **mosaicos** con el estado del bloqueo en color
   y el icono del sistema operativo.
 - 👆 Un toque en el mosaico alterna LOCK/UNLOCK; una pulsación larga muestra los
-  detalles y permite borrar el perfil.
+  detalles, los modos de energía y permite borrar el perfil.
+- 🌙 **Suspender, hibernar, apagar** desde el menú del mosaico: solo aparecen los
+  modos que el PC admite de verdad (los indica logind, no se adivinan) y cada uno
+  pide confirmación: un toque accidental no dormirá el equipo.
 - 🔗 Vinculación de una etiqueta a un PC concreto o etiqueta «universal» (abre la
   pantalla de mosaicos sin enviar comandos).
 - 🧩 **Mosaicos de ajustes rápidos** (4 ranuras): a cada uno se le asigna su PC y
@@ -75,11 +78,12 @@ flowchart LR
   ruta por sí mismo: si el dispositivo tiene una interfaz en la subred del PC
   (LAN común o ZeroTier del sistema) usa un socket directo; si no, un socket a
   través del nodo ZeroTier integrado.
-- **Protocolo**: `{"cmd":"lock|unlock|status|ask|confirm|register","reqId":"<uuid>","ts":<seg-unix>,
+- **Protocolo**: `{"cmd":"lock|unlock|status|suspend|hibernate|poweroff|ask|confirm|register",
+  "reqId":"<uuid>","ts":<seg-unix>,
   "sig":"<hex HMAC-SHA256(token, cmd|reqId|ts)>"}` →
   `{"reqId":"…","status":"ok|error","detail":"…",
-  "sig":"<hex HMAC-SHA256(token, reqId|status|detail|lan)>"}`: la respuesta
-  también va firmada y ligada al `reqId` de la petición.
+  "sig":"<hex HMAC-SHA256(token, reqId|status|detail|lan|power)>"}`: la respuesta
+  también va firmada y ligada al `reqId`; `power` son los modos de energía del PC.
 
 El nodo integrado (compilación del AAR, tropiezos, mediciones) —
 [Паспорт-libzt.md](Паспорт-libzt.md).
@@ -107,6 +111,7 @@ ubuntu-agent/     Agente del PC: servidor TCP, bandeja, instaladores
   test_auth.py      prueba de regresión de la autenticación HMAC
   test_confirm.py   prueba de regresión del flujo ask/confirm
   test_askpass.py   prueba de regresión de la carrera «terminal/ventana ↔ móvil»
+  test_power.py     prueba de regresión de los modos de energía (systemctl simulado)
   test_lan_reply.py prueba de regresión: status devuelve la dirección LAN del PC
   yggdrasil/        capa alternativa (sin uso; scripts de instalación)
 tools/bump-version.sh  sube la versión del producto y crea la etiqueta

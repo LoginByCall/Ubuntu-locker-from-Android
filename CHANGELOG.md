@@ -13,6 +13,23 @@
 
 ## [Не выпущено]
 
+## [1.3.0] — 2026-09-03
+
+### Добавлено
+- Режимы питания ПК в меню плитки (долгое нажатие): **сон, гибернация,
+  выключение**. Показываются только те, что ПК действительно умеет: агент
+  спрашивает logind (`CanSuspend`/`CanHibernate`/`CanPowerOff`), а не гадает по
+  `/sys/power/state`. Каждый режим требует подтверждения в приложении.
+- Команды `suspend`, `hibernate`, `poweroff` в протоколе; список поддерживаемых
+  приходит в ответе на `status` полем `power` и входит в подпись ответа.
+- Room v9→v10: у профиля ПК появилось поле `power`.
+- `ubuntu-agent/test_power.py`: подпись поля, отказ на неподдерживаемый режим,
+  отказ на неподписанную команду. Настоящий `systemctl` в тесте не вызывается.
+
+### Внимание
+- Подпись ответа теперь считается по `reqId|status|detail|lan|power`, поэтому
+  агент и приложение обязаны обновляться вместе (как и требует общая версия).
+
 ## [1.2.4] — 2026-09-03
 
 ### Изменено
@@ -156,7 +173,8 @@
   уходит ни в облачный бэкап, ни в перенос на новый телефон.
 - Лимит одновременных соединений и короткий таймаут чтения у агента.
 
-[Не выпущено]: https://github.com/LoginByCall/Ubuntu-locker-from-Android/compare/v1.2.4...HEAD
+[Не выпущено]: https://github.com/LoginByCall/Ubuntu-locker-from-Android/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/LoginByCall/Ubuntu-locker-from-Android/compare/v1.2.4...v1.3.0
 [1.2.4]: https://github.com/LoginByCall/Ubuntu-locker-from-Android/compare/v1.2.3...v1.2.4
 [1.2.3]: https://github.com/LoginByCall/Ubuntu-locker-from-Android/compare/v1.2.2...v1.2.3
 [1.2.2]: https://github.com/LoginByCall/Ubuntu-locker-from-Android/compare/v1.2.1...v1.2.2

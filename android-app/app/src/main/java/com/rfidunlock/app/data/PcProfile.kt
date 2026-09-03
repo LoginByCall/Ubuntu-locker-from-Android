@@ -22,6 +22,8 @@ import androidx.room.PrimaryKey
  * @param lockOnPowerDisconnect слать LOCK этому ПК при отключении телефона от
  *   зарядки (снятие с Type-C дока) — независимо от меток.
  * @param createdAt время добавления (epoch millis).
+ * @param power режимы питания, которые умеет этот ПК: "suspend,hibernate,poweroff".
+ *   Приходит в ответе на status, показывается в меню плитки.
  * @param updatedAt время последнего изменения (epoch millis).
  */
 @Entity(tableName = "pc_profiles")
@@ -37,6 +39,7 @@ data class PcProfile(
     val ztMoonId: String = "",
     val ztRoots: String = "",
     val lockOnPowerDisconnect: Boolean = false,
+    val power: String = "",
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis(),
 ) {

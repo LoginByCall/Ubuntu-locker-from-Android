@@ -37,6 +37,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -76,6 +77,8 @@ fun PcGridScreen(
     var detailsProfileId by remember { mutableStateOf<String?>(null) }
     // Профиль, для которого запрошено подтверждение удаления.
     var deletingProfile by remember { mutableStateOf<PcProfile?>(null) }
+    // Режим питания, ожидающий подтверждения: пара «профиль, действие».
+    var confirmingPower by remember { mutableStateOf<Pair<PcProfile, String>?>(null) }
 
     // Запросить статусы один раз при открытии экрана (по требованию, без фонового опроса).
     LaunchedEffect(profiles.size) {
@@ -168,8 +171,45 @@ fun PcGridScreen(
                             onCheckedChange = { viewModel.setLockOnPowerDisconnect(profile, it) },
                         )
                     }
+
+                    // Режимы питания — только те, о которых сообщил сам ПК
+                    // (ответ на status, поле power). Пусто — значит, статус
+                    // ещё не получен или ПК их не умеет.
+                    val modes = profile.power.split(",").filter { it.isNotBlank() }
+                    if (modes.isNotEmpty()) {
+                        HorizontalDivider()
+                        Text("Питание", style = MaterialTheme.typography.titleSmall)
+                        modes.forEach { mode ->
+                            TextButton(
+                                onClick = { confirmingPower = profile to mode },
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Text(powerModeLabel(mode), modifier = Modifier.weight(1f))
+                            }
+                        }
+                    }
                 }
             },
+        )
+    }
+
+    // Подтверждение режима питания: промах по пункту не должен усыплять
+    // или выключать ПК.
+    confirmingPower?.let { (profile, mode) ->
+        AlertDialog(
+            onDismissRequest = { confirmingPower = null },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.power(profile, mode)
+                    confirmingPower = null
+                    detailsProfileId = null
+                }) { Text(powerModeLabel(mode)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmingPower = null }) { Text("Отмена") }
+            },
+            title = { Text(powerModeLabel(mode)) },
+            text = { Text("«${profile.name}»: выполнить «${powerModeLabel(mode).lowercase()}»?") },
         )
     }
 
@@ -191,6 +231,15 @@ fun PcGridScreen(
         )
     }
 }
+
+/** Название режима питания для экрана; неизвестное показываем как есть. */
+private fun powerModeLabel(mode: String): String = when (mode) {
+    "suspend" -> "Сон"
+    "hibernate" -> "Гибернация"
+    "poweroff" -> "Выключить"
+    else -> mode
+}
+
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable

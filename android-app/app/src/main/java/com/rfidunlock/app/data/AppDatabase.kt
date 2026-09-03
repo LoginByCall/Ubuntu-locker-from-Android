@@ -19,7 +19,7 @@ class Converters {
     fun fromTagMode(mode: TagMode): String = mode.name
 }
 
-@Database(entities = [Tag::class, PcProfile::class], version = 9, exportSchema = false)
+@Database(entities = [Tag::class, PcProfile::class], version = 10, exportSchema = false)
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun tagDao(): TagDao
@@ -105,6 +105,13 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** Миграция v9→v10: режимы питания, которые умеет ПК (ответ на status). */
+        private val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE pc_profiles ADD COLUMN power TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
         fun get(context: Context): AppDatabase =
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -112,6 +119,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "rfid-unlock.db"
                 ).addMigrations(
+                    MIGRATION_9_10,
                     MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6,
                     MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9,
                 ).build().also { INSTANCE = it }

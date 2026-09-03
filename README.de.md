@@ -34,8 +34,11 @@ Aufbau.
 - 🖥️ **PC-Profile**: werden durch Scannen des **QR-Codes** aus dem Systemtray des
   Agenten hinzugefügt; **Kachel**-Ansicht mit farbigem Sperrstatus und
   Betriebssystem-Symbol.
-- 👆 Tipp auf die Kachel schaltet LOCK/UNLOCK um; langes Drücken zeigt Details
-  und erlaubt das Löschen des Profils.
+- 👆 Tipp auf die Kachel schaltet LOCK/UNLOCK um; langes Drücken zeigt Details,
+  Energiemodi und erlaubt das Löschen des Profils.
+- 🌙 **Schlaf, Ruhezustand, Ausschalten** aus dem Kachelmenü: gezeigt werden nur
+  die Modi, die der PC wirklich beherrscht (logind wird gefragt, nichts geraten),
+  und jeder fragt nach — ein Fehlgriff legt den Rechner nicht schlafen.
 - 🔗 Bindung eines Tags an einen bestimmten PC oder „universeller“ Tag (öffnet
   die Kachelansicht, ohne Befehle zu senden).
 - 🧩 **Kacheln in den Schnelleinstellungen** (4 Plätze): jeder wird ein eigener PC
@@ -76,11 +79,12 @@ flowchart LR
   Weg selbst: hat das Gerät eine Schnittstelle im Subnetz des PCs (gemeinsames
   LAN oder System-ZeroTier), nimmt es einen direkten Socket, sonst einen Socket
   über den eingebauten ZeroTier-Knoten.
-- **Protokoll**: `{"cmd":"lock|unlock|status|ask|confirm|register","reqId":"<uuid>","ts":<Unix-Sek>,
+- **Protokoll**: `{"cmd":"lock|unlock|status|suspend|hibernate|poweroff|ask|confirm|register",
+  "reqId":"<uuid>","ts":<Unix-Sek>,
   "sig":"<hex HMAC-SHA256(token, cmd|reqId|ts)>"}` →
   `{"reqId":"…","status":"ok|error","detail":"…",
-  "sig":"<hex HMAC-SHA256(token, reqId|status|detail|lan)>"}` — auch die Antwort
-  ist signiert und an die `reqId` der Anfrage gebunden.
+  "sig":"<hex HMAC-SHA256(token, reqId|status|detail|lan|power)>"}` — auch die
+  Antwort ist signiert und an die `reqId` gebunden; `power` sind die Energiemodi.
 
 Der eingebaute Knoten (AAR-Bau, Stolpersteine, Messungen) —
 [Паспорт-libzt.md](Паспорт-libzt.md).
@@ -108,6 +112,7 @@ ubuntu-agent/     PC-Agent: TCP-Server, Tray, Installer
   test_auth.py      Regressionstest der HMAC-Authentifizierung
   test_confirm.py   Regressionstest des ask/confirm-Ablaufs
   test_askpass.py   Regressionstest des Wettlaufs „Terminal/Fenster ↔ Handy“
+  test_power.py     Regressionstest der Energiemodi (systemctl per Attrappe)
   test_lan_reply.py Regressionstest: status liefert die LAN-Adresse des PCs
   yggdrasil/        alternative Schicht (ungenutzt; Setup-Skripte)
 tools/bump-version.sh  Produktversion anheben und Tag setzen

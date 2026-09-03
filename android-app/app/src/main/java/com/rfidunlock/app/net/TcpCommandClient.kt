@@ -24,6 +24,8 @@ data class CommandResult(
     val detail: String,
     /** Текущий LAN-адрес ПК из ответа на status (пусто, если сервер не прислал). */
     val lan: String = "",
+    /** Режимы питания, которые умеет ПК: "suspend,hibernate,poweroff". */
+    val power: String = "",
 )
 
 /**
@@ -36,7 +38,7 @@ data class CommandResult(
  * Аутентификация (этап 2, ТЗ 7.2): токен по сети не передаётся — команда
  * подписывается HMAC-SHA256(token, "cmd|reqId|ts"), сервер проверяет окно
  * времени и уникальность reqId (анти-replay). Ответ сервер подписывает так же
- * ("reqId|status|detail|lan"), клиент проверяет — иначе посредник мог бы
+ * ("reqId|status|detail|lan|power"), клиент проверяет — иначе посредник мог бы
  * подменить адрес ПК или показать ложный статус замка.
  * БЕЗОПАСНОСТЬ: криптографическая часть требует ревью человеком.
  */
@@ -61,6 +63,13 @@ class TcpCommandClient {
     suspend fun confirm(settings: ServerSettings, askId: String, approve: Boolean): CommandResult =
         send("confirm", settings, mapOf("askId" to askId,
             "verdict" to if (approve) "approve" else "deny"))
+
+    /**
+     * Режим питания: "suspend", "hibernate" или "poweroff". Слать имеет смысл
+     * только то, что ПК прислал в ответе на status полем power.
+     */
+    suspend fun power(settings: ServerSettings, action: String): CommandResult =
+        send(action, settings)
 
     /** Сообщить ПК push-токен телефона, чтобы он мог запрашивать подтверждения. */
     suspend fun register(settings: ServerSettings, fcmToken: String): CommandResult =
@@ -205,11 +214,12 @@ class TcpCommandClient {
         val status = json.optString("status")
         val detail = json.optString("detail")
         val lan = json.optString("lan").trim()
+        val power = json.optString("power").trim()
         // Ответ подписан тем же токеном и привязан к нашему reqId: иначе
         // посредник в общей сети подсунул бы чужой "lan" или ложное
         // "locked=yes". Считаем по СВОЕМУ reqId — чужой ответ не сойдётся.
         if (token.isNotEmpty()) {
-            val expected = sign("$reqId|$status|$detail|$lan", token)
+            val expected = sign("$reqId|$status|$detail|$lan|$power", token)
             if (!MessageDigest.isEqual(
                     expected.toByteArray(Charsets.UTF_8),
                     json.optString("sig").lowercase().toByteArray(Charsets.UTF_8))
@@ -219,7 +229,7 @@ class TcpCommandClient {
             }
         }
         Log.i(tag, "$cmd reqId=$reqId -> $status ($detail)")
-        return CommandResult(status == "ok", detail, lan)
+        return CommandResult(status == "ok", detail, lan, power)
     }
 
     private fun sign(message: String, token: String): String {

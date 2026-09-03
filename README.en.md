@@ -30,8 +30,11 @@ beyond the phone and the PC is part of the scheme.
   tile’s “Details” (configured per PC).
 - 🖥️ **PC profiles**: added by scanning a **QR code** from the agent’s system
   tray; a **tile** screen with a color-coded lock status and an OS icon.
-- 👆 Tap a tile to toggle LOCK/UNLOCK; long-press for details and profile
-  removal.
+- 👆 Tap a tile to toggle LOCK/UNLOCK; long-press for details, power modes and
+  profile removal.
+- 🌙 **Sleep, hibernate, shut down** from the tile menu: only the modes the PC
+  actually supports are shown (logind is asked, nothing is guessed), and each
+  one asks for confirmation — a stray tap will not put the machine to sleep.
 - 🔗 Binding a tag to a specific PC, or a “universal” tag (opens the tile screen
   without sending commands).
 - 🧩 **Quick Settings tiles** (4 slots): each is assigned its own PC, a tap
@@ -71,11 +74,12 @@ flowchart LR
   the path itself: if the device has an interface in the PC’s subnet (shared LAN
   or system ZeroTier) it uses a direct socket, otherwise a socket through the
   built-in ZeroTier node.
-- **Protocol**: `{"cmd":"lock|unlock|status|ask|confirm|register","reqId":"<uuid>","ts":<unix-sec>,
+- **Protocol**: `{"cmd":"lock|unlock|status|suspend|hibernate|poweroff|ask|confirm|register",
+  "reqId":"<uuid>","ts":<unix-sec>,
   "sig":"<hex HMAC-SHA256(token, cmd|reqId|ts)>"}` →
   `{"reqId":"…","status":"ok|error","detail":"…",
-  "sig":"<hex HMAC-SHA256(token, reqId|status|detail|lan)>"}` — the reply is
-  signed too and bound to the request’s `reqId`.
+  "sig":"<hex HMAC-SHA256(token, reqId|status|detail|lan|power)>"}` — the reply is
+  signed too and bound to the request’s `reqId`; `power` lists the PC’s power modes.
 
 The built-in node (building the AAR, pitfalls, measurements) —
 [Паспорт-libzt.md](Паспорт-libzt.md).
@@ -103,6 +107,7 @@ ubuntu-agent/     PC agent: TCP server, tray, installers
   test_auth.py      regression test for HMAC authentication
   test_confirm.py   regression test for the ask/confirm flow
   test_askpass.py   regression test for the “terminal/window ↔ phone” race
+  test_power.py     regression test for power modes (systemctl stubbed out)
   test_lan_reply.py regression test: status returns the PC’s LAN address
   yggdrasil/        alternative layer (unused; setup scripts)
 tools/bump-version.sh  bump the product version and create the tag

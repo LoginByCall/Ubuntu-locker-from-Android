@@ -19,6 +19,9 @@
   confirm  — вердикт: {"askId": "<id ask>", "verdict": "approve"|"deny"|"cancel"};
              cancel шлёт сам ПК, когда пароль успели ввести в терминале.
   register — телефон сообщает свой FCM-токен для push.
+Режимы питания (suspend/hibernate/poweroff) выполняются через systemctl; список
+поддерживаемых этим ПК приходит в ответе на status полем "power" (спрашиваем
+logind, а не гадаем), телефон показывает в меню плитки только их.
 Тело этих команд входит в подпись (см. SIGNED_FIELDS), иначе вердикт можно было
 бы подменить в пути.
 
@@ -118,6 +121,55 @@ def lan_ip() -> str:
         return ""
 
 
+# Режимы питания: имя команды -> (действие systemctl, метод logind «умеем ли»).
+POWER_ACTIONS = {
+    "suspend": ("suspend", "CanSuspend"),
+    "hibernate": ("hibernate", "CanHibernate"),
+    "poweroff": ("poweroff", "CanPowerOff"),
+}
+
+
+def power_capabilities() -> str:
+    """Что этот ПК умеет из режимов питания: «suspend,hibernate,poweroff».
+
+    Спрашиваем сам logind: он проверяет и ядро, и наличие подкачки под
+    гибернацию, и права — гадать по /sys/power/state было бы хуже.
+    Ответ не меняется при работе, поэтому считаем один раз.
+    """
+    able = []
+    for name, (_, method) in POWER_ACTIONS.items():
+        try:
+            out = subprocess.run(
+                ["busctl", "--system", "call", "org.freedesktop.login1",
+                 "/org/freedesktop/login1", "org.freedesktop.login1.Manager", method],
+                capture_output=True, text=True, timeout=5, check=True).stdout
+        except (OSError, subprocess.SubprocessError):
+            continue
+        # Ответ вида: s "yes" | "no" | "na" | "challenge".
+        # challenge — можно, но polkit спросит подтверждение у сидящего за ПК.
+        if '"yes"' in out or '"challenge"' in out:
+            able.append(name)
+    return ",".join(able)
+
+
+POWER_CAPABILITIES = power_capabilities()  # один раз при старте: список не меняется
+
+
+def run_power(action: str) -> tuple[bool, str]:
+    """Выполнить режим питания. Возвращает (успех, описание)."""
+    if action not in POWER_CAPABILITIES.split(","):
+        return False, f"unsupported:{action}"
+    command = POWER_ACTIONS[action][0]
+    try:
+        # Ответ телефону успеет уйти: systemctl возвращается сразу, а сон
+        # наступает уже после. Для poweroff это тоже верно.
+        subprocess.run(["systemctl", command], check=True, capture_output=True, text=True)
+        return True, action
+    except (OSError, subprocess.CalledProcessError) as exc:
+        detail = getattr(exc, "stderr", "") or str(exc)
+        return False, detail.strip()[:200]
+
+
 def current_session_id() -> str:
     """Определить id графической сессии текущего пользователя.
 
@@ -205,7 +257,7 @@ def sign_reply(resp: dict) -> dict:
     """
     if not TOKEN:
         return resp
-    parts = [str(resp.get(f, "")) for f in ("reqId", "status", "detail", "lan")]
+    parts = [str(resp.get(f, "")) for f in ("reqId", "status", "detail", "lan", "power")]
     resp["sig"] = hmac.new(
         TOKEN.encode("utf-8"), "|".join(parts).encode("utf-8"), hashlib.sha256
     ).hexdigest()
@@ -314,8 +366,9 @@ def handle_command(payload: dict, peer: str = "") -> dict:
         log.warning("Отклонена команда: %s (cmd=%s reqId=%s)", reason, cmd, req_id)
         return {"reqId": req_id, "status": "error", "detail": "unauthorized"}
 
-    sid = "" if cmd in ("ask", "confirm", "register") else current_session_id()
-    if not sid and cmd not in ("ask", "confirm", "register"):
+    sessionless = ("ask", "confirm", "register", *POWER_ACTIONS)
+    sid = "" if cmd in sessionless else current_session_id()
+    if not sid and cmd not in sessionless:
         return {"reqId": req_id, "status": "error", "detail": "no-session"}
 
     if cmd == "lock":
@@ -329,7 +382,7 @@ def handle_command(payload: dict, peer: str = "") -> dict:
                 capture_output=True, text=True, check=True,
             ).stdout.strip()
             return {"reqId": req_id, "status": "ok", "detail": f"locked={locked}",
-                    "lan": lan_ip()}
+                    "lan": lan_ip(), "power": POWER_CAPABILITIES}
         except subprocess.CalledProcessError as exc:
             return {"reqId": req_id, "status": "error", "detail": str(exc)}
     elif cmd == "ask":
@@ -341,6 +394,8 @@ def handle_command(payload: dict, peer: str = "") -> dict:
         ok, detail = ask_phone(req_id, str(payload.get("prompt", "")), timeout_s)
     elif cmd == "confirm":
         ok, detail = resolve_ask(str(payload.get("askId", "")), str(payload.get("verdict", "")))
+    elif cmd in POWER_ACTIONS:
+        ok, detail = run_power(cmd)
     elif cmd == "register":
         fcm = str(payload.get("fcm", "")).strip()
         if not fcm:

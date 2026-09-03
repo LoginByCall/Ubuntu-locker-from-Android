@@ -43,6 +43,12 @@ class PcProfileRepository(private val dao: PcProfileDao) {
         dao.update(profile.copy(lan = lan, updatedAt = System.currentTimeMillis()))
     }
 
+    /** Запомнить режимы питания, о которых ПК сообщил в ответе на status. */
+    suspend fun setPower(profile: PcProfile, power: String) {
+        if (power == profile.power) return
+        dao.update(profile.copy(power = power, updatedAt = System.currentTimeMillis()))
+    }
+
     /** Включить/выключить LOCK этого ПК при отключении телефона от зарядки. */
     suspend fun setLockOnPowerDisconnect(profile: PcProfile, enabled: Boolean) =
         dao.update(profile.copy(lockOnPowerDisconnect = enabled, updatedAt = System.currentTimeMillis()))

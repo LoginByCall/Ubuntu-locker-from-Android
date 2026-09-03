@@ -70,12 +70,13 @@ def main() -> int:
         expected = hmac.new(
             TOKEN.encode(),
             "|".join([req["reqId"], resp.get("status", ""), resp.get("detail", ""),
-                      resp.get("lan", "")]).encode(),
+                      resp.get("lan", ""), resp.get("power", "")]).encode(),
             hashlib.sha256).hexdigest()
         assert resp.get("sig") == expected, "ответ сервера должен быть подписан"
         assert hmac.new(TOKEN.encode(),
                         "|".join(["чужой-reqId", resp.get("status", ""),
-                                  resp.get("detail", ""), resp.get("lan", "")]).encode(),
+                                  resp.get("detail", ""), resp.get("lan", ""),
+                                  resp.get("power", "")]).encode(),
                         hashlib.sha256).hexdigest() != resp["sig"], \
             "подпись должна быть привязана к reqId запроса"
         print("OK: все проверки HMAC-аутентификации пройдены")

@@ -96,6 +96,8 @@ class PcGridViewModel(
         if (!result.ok) return PcStatus.OFFLINE
         // ПК сообщает свой текущий адрес в LAN — так быстрый путь переживает DHCP.
         repository.setLan(profile, result.lan)
+        // И заодно — какие режимы питания он умеет: меню плитки строится по ним.
+        repository.setPower(profile, result.power)
         // detail вида "locked=<LockedHint>", где LockedHint = yes/no (loginctl).
         val detail = result.detail.lowercase()
         return when {
@@ -107,6 +109,18 @@ class PcGridViewModel(
 
     private fun setStatus(id: String, status: PcStatus) {
         _statuses.update { it + (id to status) }
+    }
+
+    /**
+     * Режим питания ПК: "suspend", "hibernate" или "poweroff".
+     * После выполнения ПК уходит в сон/выключается, поэтому статус ставим
+     * сразу в «недоступен», не дожидаясь опроса.
+     */
+    fun power(profile: PcProfile, action: String) {
+        viewModelScope.launch {
+            val result = client.power(profile.toServerSettings(), action)
+            setStatus(profile.id, if (result.ok) PcStatus.OFFLINE else PcStatus.UNKNOWN)
+        }
     }
 
     /** LOCK при отключении зарядки — настройка конкретного ПК. */
